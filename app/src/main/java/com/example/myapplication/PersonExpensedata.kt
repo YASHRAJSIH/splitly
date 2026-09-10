@@ -1,4 +1,7 @@
 package com.example.myapplication
+
+import android.R
+
 /**
  * Plain data holder — no UI here. One person's expense entry.
  *
@@ -7,7 +10,9 @@ data class PersonExpense(
     val name: String = "",
     val date: String = "",
     val expenseName: String = "",
-    val money: Double = 0.0,
+    val Amount: String = "",
+    val credit : String = "",
+    val Debit :String = "",
 )
 
 val samplePersonExpenses = listOf(
@@ -15,37 +20,37 @@ val samplePersonExpenses = listOf(
         name = "Alex",
         date = "Sep 5, 2026",
         expenseName = "Grocery Run",
-        money = 10.0,
+        Amount = "90.0",
     ),
     PersonExpense(
         name = "Raj",
         date = "Sep 3, 2026",
         expenseName = "Electricity & Wifi",
-        money = 60.0,
+        Amount = "60.0",
     ),
     PersonExpense(
         name = "Alex",
         date = "Aug 28, 2026",
         expenseName = "tk",
-        money = 180.0,
+        Amount = "60.0",
     ),
     PersonExpense(
         name = "Raj",
         date = "Aug 28, 2026",
         expenseName = "kaufland",
-        money = 120.0,
+        Amount = "60.0",
     ),
     PersonExpense(
         name = "Raj",
         date = "Aug 28, 2026",
         expenseName = "party",
-        money = 60.0,
+        Amount = "60.0",
     ),
     PersonExpense(
         name = "Raj",
         date = "Aug 28, 2026",
         expenseName = "university day",
-        money = 90.0,
+        Amount = "60.0",
     )
 
 )
