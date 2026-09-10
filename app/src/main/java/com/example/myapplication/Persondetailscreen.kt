@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.clickable
 
 /**
  * FILE PURPOSE: "Person Details" screen — UI only, no Firebase, no navigation
@@ -62,7 +63,7 @@ data class Transaction(
 
 // ---------- SAMPLE DATA ----------
 private val samplePerson = PersonDetails(
-    name = "Alex Rivera",
+    name = "Alex",
     theyOweYou = 60.50,
     theyOweExpenseCount = 2,
     youOweThem = 18.00,
@@ -140,7 +141,8 @@ private val sampleTransactions = listOf(
 fun PersonDetailsScreen(
     person: PersonDetails = samplePerson,
     transactions: List<Transaction> = sampleTransactions,
-    onBackClick: () -> Unit = {}
+    onBackClick: () -> Unit = {} ,
+    onAddExpenseClick: () -> Unit = {}   // ← new
 ) {
     Column(
         modifier = Modifier
@@ -153,7 +155,7 @@ fun PersonDetailsScreen(
         Spacer(modifier = Modifier.height(12.dp))
         TransactionHistorySection(transactions)
         Spacer(modifier = Modifier.height(16.dp))
-        AddExpenseButton(person.name)
+        AddExpenseButton(person.name, onClick = onAddExpenseClick)
         Spacer(modifier = Modifier.height(24.dp))
     }
 }
@@ -416,11 +418,12 @@ private fun TransactionRow(transaction: Transaction) {
 
 // ---------- ADD EXPENSE BUTTON ----------
 @Composable
-private fun AddExpenseButton(personFirstName: String) {
+private fun AddExpenseButton(personFirstName: String,onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
+            .clickable { onClick() }
             .background(Purple, RoundedCornerShape(14.dp))
             .padding(vertical = 16.dp),
         horizontalArrangement = Arrangement.Center,

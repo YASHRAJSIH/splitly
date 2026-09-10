@@ -79,7 +79,10 @@ fun SplitlyApp() {
         ) {
             composable("home") { HomeScreen(navController) }
             composable("accounts") { AccountsScreen() }
-            composable("personDetails") { PersonDetailsScreen() }   // ← new route
+            composable("personDetails") {
+                PersonDetailsScreen(onAddExpenseClick = { navController.navigate("addExpense") })   // ← updated
+            }
+            composable("addExpense") { AddExpenseScreen() }
         }
     }
 }
