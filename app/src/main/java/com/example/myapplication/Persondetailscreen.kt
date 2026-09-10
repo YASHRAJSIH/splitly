@@ -194,16 +194,7 @@ private fun HeaderRow(person: PersonDetails, onBackClick: () -> Unit) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(person.name, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                if (person.isVerified) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("✓", color = Purple, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
             }
-            Text(
-                "Shared balance · ${person.theyOweExpenseCount + person.youOweExpenseCount} shared expenses",
-                fontSize = 12.sp,
-                color = Gray
-            )
         }
     }
 }
@@ -229,16 +220,7 @@ private fun NetBalanceCard(person: PersonDetails) {
                 modifier = Modifier
                     .background(Color(0xFFE3F9EC), RoundedCornerShape(20.dp))
                     .padding(horizontal = 10.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = if (isInYourFavor) "${person.name.substringBefore(" ")} owes you"
-                    else "You owe ${person.name.substringBefore(" ")}",
-                    fontSize = 12.sp,
-                    color = Green,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-            Text("Since ${person.since}", fontSize = 11.sp, color = Gray)
+            )
         }
 
         Spacer(modifier = Modifier.height(14.dp))
@@ -263,35 +245,6 @@ private fun NetBalanceCard(person: PersonDetails) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(BgGray, RoundedCornerShape(12.dp))
-                .padding(vertical = 12.dp),
-        ) {
-            BalanceStat(
-                label = "${person.name.substringBefore(" ")} owes",
-                amount = "€${"%.2f".format(person.theyOweYou)}",
-                subLabel = "${person.theyOweExpenseCount} expenses",
-                modifier = Modifier.weight(1f)
-            )
-            Box(
-                modifier = Modifier
-                    .width(1.dp)
-                    .height(40.dp)
-                    .background(Color(0xFFE0E0E0))
-            )
-            BalanceStat(
-                label = "You owe",
-                amount = "€${"%.2f".format(person.youOweThem)}",
-                subLabel = "${person.youOweExpenseCount} expense",
-                color = Red,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
                 .background(Purple, RoundedCornerShape(14.dp))
                 .padding(vertical = 14.dp),
             horizontalArrangement = Arrangement.Center
@@ -304,33 +257,15 @@ private fun NetBalanceCard(person: PersonDetails) {
             )
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        //Spacer(modifier = Modifier.height(10.dp))
 
-        Text(
-            "Last settled: ${person.lastSettledDate} (€${"%.2f".format(person.lastSettledAmount)})",
-            fontSize = 11.sp,
-            color = Gray,
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
-    }
-}
-
-@Composable
-private fun BalanceStat(
-    label: String,
-    amount: String,
-    subLabel: String,
-    modifier: Modifier = Modifier,
-    color: Color = Green
-) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(label, fontSize = 12.sp, color = Gray)
-        Text(amount, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = color)
-        Text(subLabel, fontSize = 11.sp, color = Gray)
+//        Text(
+//            "Last settled: ${person.lastSettledDate} (€${"%.2f".format(person.lastSettledAmount)})",
+//            fontSize = 11.sp,
+//            color = Gray,
+//            modifier = Modifier.fillMaxWidth(),
+//            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+//        )
     }
 }
 
@@ -346,13 +281,6 @@ private fun TransactionHistorySection(transactions: List<Transaction>) {
         ) {
             Text("Transaction History", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.width(6.dp))
-            Box(
-                modifier = Modifier
-                    .background(Purple, CircleShape)
-                    .padding(horizontal = 7.dp, vertical = 1.dp)
-            ) {
-                Text("${transactions.size}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            }
         }
 
         transactions.forEach { transaction -> TransactionRow(transaction) }
