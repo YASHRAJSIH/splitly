@@ -12,6 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.clickable
 
 /**
  * FILE PURPOSE: "Your Groups" section + "People" section.
@@ -120,7 +121,8 @@ private fun TwoLineAmount(amount: String, label: String, color: Color) {
 
 // ---------- PEOPLE ----------
 @Composable
-fun PeopleSection(people: List<PersonItem> = samplePeople) {
+fun PeopleSection(people: List<PersonItem> = samplePeople,
+                  onPersonClick: (PersonItem) -> Unit = {} ) {
     Column {
         Text(
             "People",
@@ -129,15 +131,16 @@ fun PeopleSection(people: List<PersonItem> = samplePeople) {
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
         )
 
-        people.forEach { person -> PersonRow(person) }
+        people.forEach { person -> PersonRow(person, onClick = { onPersonClick(person)}) }
     }
 }
 
 @Composable
-private fun PersonRow(person: PersonItem) {
+private fun PersonRow(person: PersonItem,onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onClick() }
             .padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

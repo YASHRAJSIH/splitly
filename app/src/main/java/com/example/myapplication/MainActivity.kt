@@ -33,7 +33,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-
 /**
  * MainActivity's ONLY job: host the Scaffold (top bar / bottom bar / FAB) and
  * decide which page is shown ("home" vs "accounts"). It does not draw any of
@@ -63,14 +62,14 @@ fun SplitlyApp() {
     Scaffold(
         topBar = { SplitlyTopBar() },
         bottomBar = { SplitlyBottomBar(navController) },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { /* TODO: navigate to "add expense" once that screen exists */ },
-                containerColor = Color(0xFF5B6EF5)
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = "Add expense", tint = Color.White)
-            }
-        }
+//        floatingActionButton = {
+//            FloatingActionButton(
+//                onClick = { /* TODO: navigate to "add expense" once that screen exists */ },
+//                containerColor = Color(0xFF5B6EF5)
+//            ) {
+//                Icon(Icons.Filled.Add, contentDescription = "Add expense", tint = Color.White)
+//            }
+//        }
     ) { innerPadding ->
         // ---- ROUTING TABLE: this is the "pages path and redirection" part ----
         NavHost(
@@ -78,22 +77,25 @@ fun SplitlyApp() {
             startDestination = "home",
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable("home") { HomeScreen() }
+            composable("home") { HomeScreen(navController) }
             composable("accounts") { AccountsScreen() }
+            composable("personDetails") { PersonDetailsScreen() }   // ← new route
         }
     }
 }
 
 // The Home page = balance card + groups + people, stacked and scrollable.
 @Composable
-private fun HomeScreen() {
+private fun HomeScreen(navController: NavHostController) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         item { AccountBalanceCard() }
         item { Spacer(modifier = Modifier.height(12.dp)) }
-        item { GroupsSection() }
-        item { Spacer(modifier = Modifier.height(12.dp)) }
-        item { PeopleSection() }
-        item { Spacer(modifier = Modifier.height(80.dp)) } // clears the FAB
+//        item { GroupsSection() }
+//        item { Spacer(modifier = Modifier.height(12.dp)) }
+        item {
+            PeopleSection(onPersonClick = { navController.navigate("personDetails") })  // ← added
+        }
+        item { Spacer(modifier = Modifier.height(80.dp)) }
     }
 }
 

@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "556964836023",
+    "firebase_url": "https://splitly-9a41f-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "splitly-9a41f",
+    "storage_bucket": "splitly-9a41f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:556964836023:android:a69a18df723b6d1ee65332",
+        "android_client_info": {
+          "package_name": "com.example.myapplication"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAre18QakCuVCHZbn07W-BdTqtg0R9k3fw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
