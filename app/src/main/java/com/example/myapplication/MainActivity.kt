@@ -33,6 +33,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import androidx.navigation.NavType
 /**
  * MainActivity's ONLY job: host the Scaffold (top bar / bottom bar / FAB) and
  * decide which page is shown ("home" vs "accounts"). It does not draw any of
@@ -79,10 +81,18 @@ fun SplitlyApp() {
         ) {
             composable("home") { HomeScreen(navController) }
             composable("accounts") { AccountsScreen() }
-            composable("personDetails") {
-                PersonDetailsScreen(onAddExpenseClick = { navController.navigate("addExpense") })   // ← updated
+            composable(
+                route = "personDetails/{personIndex}",
+                arguments = listOf(navArgument("personIndex") { type = NavType.IntType })
+            ) { backStackEntry ->
+                val index = backStackEntry.arguments?.getInt("personIndex") ?: 0
+                val selectedPerson = samplePeople.getOrNull(index) ?: samplePeople.first()
+
+                PersonDetailsScreen(
+                    person = PersonDetails(name = selectedPerson.name, amount = selectedPerson.amount),
+                    onAddExpenseClick = { navController.navigate("addExpense") }
+                )
             }
-            composable("addExpense") { AddExpenseScreen() }
         }
     }
 }
@@ -96,7 +106,11 @@ private fun HomeScreen(navController: NavHostController) {
 //        item { GroupsSection() }
 //        item { Spacer(modifier = Modifier.height(12.dp)) }
         item {
-            PeopleSection(onPersonClick = { navController.navigate("personDetails") })  // ← added
+                PeopleSection(onPersonClick = { person ->
+                    val index = samplePeople.indexOf(person)
+                    navController.navigate("personDetails/$index")
+                })
+             // ← added
         }
         item { Spacer(modifier = Modifier.height(80.dp)) }
     }

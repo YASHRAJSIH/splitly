@@ -48,10 +48,10 @@ private val sampleGroups = listOf(
     GroupItem("Weekend with Friends", 5, 0.0, Color(0xFFB0B0B0))
 )
 
-private val samplePeople = listOf(
-    PersonItem("Alex", 50.0, Color(0xFFE8B98C)),
-    PersonItem("Sarah", -20.0, Color(0xFFD98C8C)),
-    PersonItem("Mike", 0.0, Color(0xFFB0B0B0))
+public val samplePeople = listOf(
+    PersonItem("Ankita", 50.0, Color(0xFFE8B98C)),
+    PersonItem("Kishan", -20.0, Color(0xFFD98C8C)),
+    PersonItem("Devanshi", 0.0, Color(0xFFB0B0B0))
 )
 
 // ---------- GROUPS ----------

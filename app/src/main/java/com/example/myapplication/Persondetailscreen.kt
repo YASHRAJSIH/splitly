@@ -36,17 +36,14 @@ private val BgGray = Color(0xFFF5F6FA)
 // ---------- DATA MODELS ----------
 data class PersonDetails(
     val name: String,
-    val isVerified: Boolean = true,
-    val theyOweYou: Double,       // e.g. Alex owes you 60.50
-    val theyOweExpenseCount: Int,
-    val youOweThem: Double,       // e.g. you owe Alex 18.00
-    val youOweExpenseCount: Int,
-    val since: String,
-    val lastSettledDate: String,
-    val lastSettledAmount: Double
-) {
-    val netBalance: Double get() = theyOweYou - youOweThem
-}
+    val amount: Double,
+)
+
+
+//{
+//
+//    val netBalance: Double get() = theyOweYou - youOweThem
+//}
 
 data class Transaction(
     val icon: String,              // emoji shown in the colored circle
@@ -61,17 +58,17 @@ data class Transaction(
     val statusIsPill: Boolean      // true = rounded pill background, false = plain text
 )
 
-// ---------- SAMPLE DATA ----------
-private val samplePerson = PersonDetails(
-    name = "Alex",
-    theyOweYou = 60.50,
-    theyOweExpenseCount = 2,
-    youOweThem = 18.00,
-    youOweExpenseCount = 1,
-    since = "Mar 2026",
-    lastSettledDate = "Aug 28, 2026",
-    lastSettledAmount = 85.00
-)
+//// ---------- SAMPLE DATA ----------
+//private val samplePerson = PersonDetails(
+//    name = "Alex",
+//    theyOweYou = 60.50,
+//    theyOweExpenseCount = 2,
+//    youOweThem = 18.00,
+//    youOweExpenseCount = 1,
+//    since = "Mar 2026",
+//    lastSettledDate = "Aug 28, 2026",
+//    lastSettledAmount = 85.00
+//)
 
 private val sampleTransactions = listOf(
     Transaction(
@@ -139,9 +136,11 @@ private val sampleTransactions = listOf(
 // ---------- SCREEN ----------
 @Composable
 fun PersonDetailsScreen(
-    person: PersonDetails = samplePerson,
+    person: PersonDetails = PersonDetails(
+        name = samplePeople.first().name,
+        amount = samplePeople.first().amount
+    ),
     transactions: List<Transaction> = sampleTransactions,
-    onBackClick: () -> Unit = {} ,
     onAddExpenseClick: () -> Unit = {}   // ← new
 ) {
     Column(
@@ -150,8 +149,8 @@ fun PersonDetailsScreen(
             .background(BgGray)
             .verticalScroll(rememberScrollState())
     ) {
-        HeaderRow(person, onBackClick)
-        NetBalanceCard(person)
+        HeaderRow(person)
+        //NetBalanceCard(person)
         Spacer(modifier = Modifier.height(12.dp))
         TransactionHistorySection(transactions)
         Spacer(modifier = Modifier.height(16.dp))
@@ -162,21 +161,13 @@ fun PersonDetailsScreen(
 
 // ---------- BACK BUTTON + NAME ----------
 @Composable
-private fun HeaderRow(person: PersonDetails, onBackClick: () -> Unit) {
+private fun HeaderRow(person: PersonDetails) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = Icons.Filled.ArrowBack,
-            contentDescription = "Back",
-            modifier = Modifier
-                .size(24.dp)
-                .background(Color.White, CircleShape)
-                .padding(2.dp),
-        )
 
         Spacer(modifier = Modifier.width(12.dp))
 
@@ -186,7 +177,7 @@ private fun HeaderRow(person: PersonDetails, onBackClick: () -> Unit) {
                 .background(Purple, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text(person.name.first().toString(), color = Color.White, fontWeight = FontWeight.Bold)
+            Text(person.name, color = Color.White, fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.width(12.dp))
@@ -199,77 +190,77 @@ private fun HeaderRow(person: PersonDetails, onBackClick: () -> Unit) {
     }
 }
 
-// ---------- NET BALANCE CARD ----------
-@Composable
-private fun NetBalanceCard(person: PersonDetails) {
-    val isInYourFavor = person.netBalance >= 0
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .background(Color.White, RoundedCornerShape(16.dp))
-            .padding(20.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .background(Color(0xFFE3F9EC), RoundedCornerShape(20.dp))
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        Text("TOTAL NET BALANCE", fontSize = 11.sp, color = Gray, fontWeight = FontWeight.Medium)
-
-        Text(
-            text = "${if (isInYourFavor) "+" else "-"}€${"%.2f".format(kotlin.math.abs(person.netBalance))}",
-            fontSize = 30.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (isInYourFavor) Green else Red
-        )
-
-        Text(
-            text = if (isInYourFavor) "in your favor" else "you're behind",
-            fontSize = 12.sp,
-            color = Gray
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Purple, RoundedCornerShape(14.dp))
-                .padding(vertical = 14.dp),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Text(
-                "Settle Up €${"%.2f".format(kotlin.math.abs(person.netBalance))}",
-                color = Color.White,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp
-            )
-        }
-
-        //Spacer(modifier = Modifier.height(10.dp))
-
-//        Text(
-//            "Last settled: ${person.lastSettledDate} (€${"%.2f".format(person.lastSettledAmount)})",
-//            fontSize = 11.sp,
-//            color = Gray,
+//// ---------- NET BALANCE CARD ----------
+//@Composable
+//private fun NetBalanceCard(person: PersonDetails) {
+//    val isInYourFavor = person.netBalance >= 0
+//
+//    Column(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(horizontal = 16.dp)
+//            .background(Color.White, RoundedCornerShape(16.dp))
+//            .padding(20.dp)
+//    ) {
+//        Row(
 //            modifier = Modifier.fillMaxWidth(),
-//            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+//            horizontalArrangement = Arrangement.SpaceBetween,
+//            verticalAlignment = Alignment.CenterVertically
+//        ) {
+//            Box(
+//                modifier = Modifier
+//                    .background(Color(0xFFE3F9EC), RoundedCornerShape(20.dp))
+//                    .padding(horizontal = 10.dp, vertical = 4.dp)
+//            )
+//        }
+//
+//        Spacer(modifier = Modifier.height(14.dp))
+//
+//        Text("TOTAL NET BALANCE", fontSize = 11.sp, color = Gray, fontWeight = FontWeight.Medium)
+//
+//        Text(
+//            text = "${if (isInYourFavor) "+" else "-"}€${"%.2f".format(kotlin.math.abs(person.netBalance))}",
+//            fontSize = 30.sp,
+//            fontWeight = FontWeight.Bold,
+//            color = if (isInYourFavor) Green else Red
 //        )
-    }
-}
-
-// ---------- TRANSACTION HISTORY (all items, no filter tabs) ----------
+//
+//        Text(
+//            text = if (isInYourFavor) "in your favor" else "you're behind",
+//            fontSize = 12.sp,
+//            color = Gray
+//        )
+//
+//        Spacer(modifier = Modifier.height(16.dp))
+//
+//        Row(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .background(Purple, RoundedCornerShape(14.dp))
+//                .padding(vertical = 14.dp),
+//            horizontalArrangement = Arrangement.Center
+//        ) {
+//            Text(
+//                "Settle Up €${"%.2f".format(kotlin.math.abs(person.netBalance))}",
+//                color = Color.White,
+//                fontWeight = FontWeight.SemiBold,
+//                fontSize = 15.sp
+//            )
+//        }
+//
+//        //Spacer(modifier = Modifier.height(10.dp))
+//
+////        Text(
+////            "Last settled: ${person.lastSettledDate} (€${"%.2f".format(person.lastSettledAmount)})",
+////            fontSize = 11.sp,
+////            color = Gray,
+////            modifier = Modifier.fillMaxWidth(),
+////            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+////        )
+//    }
+//}
+//
+//  ---------- TRANSACTION HISTORY (all items, no filter tabs) ----------
 @Composable
 private fun TransactionHistorySection(transactions: List<Transaction>) {
     Column(modifier = Modifier.padding(top = 20.dp)) {

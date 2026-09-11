@@ -10,10 +10,23 @@ import com.google.firebase.database.FirebaseDatabase
 // "expenses" is just the top-level node name in your database tree —
 // call it whatever you want, it'll show up under that name in the
 // Firebase console's Realtime Database tab.
+data class PersonExpense(
+    val name: String = "",
+    val date: String = "",
+    val expenseName: String = "",
+    val Amount: String = "",
+    val credit : String = "",
+    val Debit :String = "",
+)
+
+val listPersonExpenses = listOf(
+    PersonExpense(
+    ))
+
 private val expensesRef = FirebaseDatabase.getInstance().reference.child("expenses")
 
 fun uploadPersonExpenses(
-    expenses: List<PersonExpense> = samplePersonExpenses,
+    expenses: List<PersonExpense> = listPersonExpenses,
     onComplete: (success: Boolean, message: String) -> Unit = { _, _ -> }
 ) {
     expenses.forEach { expense ->
