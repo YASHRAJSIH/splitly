@@ -64,14 +64,14 @@ fun SplitlyApp() {
     Scaffold(
         topBar = { SplitlyTopBar() },
         bottomBar = { SplitlyBottomBar(navController) },
-//        floatingActionButton = {
-//            FloatingActionButton(
-//                onClick = { /* TODO: navigate to "add expense" once that screen exists */ },
-//                containerColor = Color(0xFF5B6EF5)
-//            ) {
-//                Icon(Icons.Filled.Add, contentDescription = "Add expense", tint = Color.White)
-//            }
-//        }
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { navController.navigate("addExpense")},
+                containerColor = Color(0xFF5B6EF5)
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = "Add expense", tint = Color.White)
+            }
+        }
     ) { innerPadding ->
         // ---- ROUTING TABLE: this is the "pages path and redirection" part ----
         NavHost(
@@ -93,6 +93,9 @@ fun SplitlyApp() {
                     onAddExpenseClick = { navController.navigate("addExpense") }
                 )
             }
+            composable("addExpense") {
+                AddExpenseScreen()
+            }
         }
     }
 }
@@ -113,6 +116,7 @@ private fun HomeScreen(navController: NavHostController) {
              // ← added
         }
         item { Spacer(modifier = Modifier.height(80.dp)) }
+        item {  }
     }
 }
 

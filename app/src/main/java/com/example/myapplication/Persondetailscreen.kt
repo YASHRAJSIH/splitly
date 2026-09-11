@@ -154,8 +154,6 @@ fun PersonDetailsScreen(
         Spacer(modifier = Modifier.height(12.dp))
         TransactionHistorySection(transactions)
         Spacer(modifier = Modifier.height(16.dp))
-        AddExpenseButton(person.name, onClick = onAddExpenseClick)
-        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -335,29 +333,6 @@ private fun TransactionRow(transaction: Transaction) {
     }
 }
 
-// ---------- ADD EXPENSE BUTTON ----------
-@Composable
-private fun AddExpenseButton(personFirstName: String,onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clickable { onClick() }
-            .background(Purple, RoundedCornerShape(14.dp))
-            .padding(vertical = 16.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            "Add Expense with ${personFirstName.substringBefore(" ")}",
-            color = Color.White,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 15.sp
-        )
-    }
-}
 
 @Preview(showBackground = true, heightDp = 900)
 @Composable
