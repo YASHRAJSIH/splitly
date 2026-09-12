@@ -12,6 +12,11 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,9 +27,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
 
 /**
- * FILE PURPOSE: "Person Details" screen — UI only, no Firebase, no navigation
- * wiring. Just what was asked for: back button, name, net balance, the full
- * transaction list (no filter tabs), and the Add Expense button.
+ * FILE PURPOSE: "Person Details" screen with real Firebase data.
+ * - Back button, name, net balance
+ * - Real transaction history from Firebase
+ * - Add Expense button
  */
 
 private val Purple = Color(0xFF5B6EF5)
@@ -39,95 +45,42 @@ data class PersonDetails(
     val amount: Double,
 )
 
-
-//{
-//
-//    val netBalance: Double get() = theyOweYou - youOweThem
-//}
-
 data class Transaction(
-    val icon: String,              // emoji shown in the colored circle
+    val icon: String,
     val iconBackground: Color,
     val title: String,
     val date: String,
-    val paidBy: String,            // "Alex" or "You"
+    val paidBy: String,
     val amount: Double,
-    val note: String,              // small gray line under the date
-    val statusLabel: String,       // "You owe €30.00" / "Settled" / etc
+    val note: String,
+    val statusLabel: String,
     val statusColor: Color,
-    val statusIsPill: Boolean      // true = rounded pill background, false = plain text
+    val statusIsPill: Boolean
 )
 
-//// ---------- SAMPLE DATA ----------
-//private val samplePerson = PersonDetails(
-//    name = "Alex",
-//    theyOweYou = 60.50,
-//    theyOweExpenseCount = 2,
-//    youOweThem = 18.00,
-//    youOweExpenseCount = 1,
-//    since = "Mar 2026",
-//    lastSettledDate = "Aug 28, 2026",
-//    lastSettledAmount = 85.00
-//)
-
+// Sample transactions (fallback if Firebase is empty)
 private val sampleTransactions = listOf(
     Transaction(
         icon = "🍽️",
         iconBackground = Color(0xFFFDEBD9),
         title = "Dinner at Osteria",
-        date = "12 Sep 2026 · Paid by Alex",
-        paidBy = "Alex",
+        date = "12 Sep 2026",
+        paidBy = "You",
         amount = 60.00,
-        note = "50/50 Split (Your cut: €30.00)",
-        statusLabel = "You owe €30.00",
-        statusColor = Red,
-        statusIsPill = false
+        note = "Split equally",
+        statusLabel = "50/50 Split",
+        statusColor = Gray,
+        statusIsPill = true
     ),
     Transaction(
         icon = "🚕",
         iconBackground = Color(0xFFD9F2EC),
         title = "Airport Taxi",
-        date = "10 Sep 2026 · Paid by You",
-        paidBy = "You",
+        date = "10 Sep 2026",
+        paidBy = "Them",
         amount = 24.00,
-        note = "Alex's share: €12.00",
+        note = "You split equally",
         statusLabel = "Unsettled",
-        statusColor = Gray,
-        statusIsPill = true
-    ),
-    Transaction(
-        icon = "🛒",
-        iconBackground = Color(0xFFFDF3D9),
-        title = "Weekend Groceries",
-        date = "07 Sep 2026 · Paid by Alex",
-        paidBy = "Alex",
-        amount = 45.50,
-        note = "Split 2 ways (€22.75 each)",
-        statusLabel = "You owe €22.75",
-        statusColor = Red,
-        statusIsPill = false
-    ),
-    Transaction(
-        icon = "✅",
-        iconBackground = Color(0xFFD9F9E5),
-        title = "Settle Up Transfer",
-        date = "28 Aug 2026 · Paid by Alex",
-        paidBy = "Alex",
-        amount = 85.00,
-        note = "Via SEPA Instant Transfer",
-        statusLabel = "Settled",
-        statusColor = Green,
-        statusIsPill = true
-    ),
-    Transaction(
-        icon = "🎫",
-        iconBackground = Color(0xFFE3E0FB),
-        title = "Museum Tickets",
-        date = "24 Aug 2026 · Paid by You",
-        paidBy = "You",
-        amount = 32.00,
-        note = "Resolved in August balance",
-        statusLabel = "Settled",
         statusColor = Gray,
         statusIsPill = true
     )
@@ -140,9 +93,20 @@ fun PersonDetailsScreen(
         name = samplePeople.first().name,
         amount = samplePeople.first().amount
     ),
-    transactions: List<Transaction> = sampleTransactions,
-    onAddExpenseClick: () -> Unit = {}   // ← new
+    onAddExpenseClick: () -> Unit = {}
 ) {
+    // Load real transactions from Firebase
+    var realTransactions by remember { mutableStateOf<List<PersonExpense>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(person.name) {
+        getPersonTransactions(person.name) { transactions ->
+            realTransactions = transactions
+            isLoading = false
+            println("📱 Loaded ${transactions.size} transactions for ${person.name}")
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -150,14 +114,37 @@ fun PersonDetailsScreen(
             .verticalScroll(rememberScrollState())
     ) {
         HeaderRow(person)
-        //NetBalanceCard(person)
         Spacer(modifier = Modifier.height(12.dp))
-        TransactionHistorySection(transactions)
+
+        if (realTransactions.isEmpty()) {
+            if (isLoading) {
+                Text(
+                    "Loading transactions...",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    fontSize = 14.sp,
+                    color = Gray
+                )
+            } else {
+                Text(
+                    "No transactions yet. Add one!",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    fontSize = 14.sp,
+                    color = Gray
+                )
+            }
+        } else {
+            TransactionHistorySection(realTransactions)
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
-// ---------- BACK BUTTON + NAME ----------
+// ---------- HEADER ----------
 @Composable
 private fun HeaderRow(person: PersonDetails) {
     Row(
@@ -166,101 +153,37 @@ private fun HeaderRow(person: PersonDetails) {
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-
-        Spacer(modifier = Modifier.width(12.dp))
-
         Box(
             modifier = Modifier
                 .size(44.dp)
                 .background(Purple, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text(person.name, color = Color.White, fontWeight = FontWeight.Bold)
+            Text(
+                person.name.first().uppercase(),
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
         }
 
         Spacer(modifier = Modifier.width(12.dp))
 
         Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(person.name, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            }
+            Text(person.name, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "${if (person.amount >= 0) "+" else ""}${person.amount}",
+                fontSize = 13.sp,
+                color = if (person.amount >= 0) Green else Red,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
 
-//// ---------- NET BALANCE CARD ----------
-//@Composable
-//private fun NetBalanceCard(person: PersonDetails) {
-//    val isInYourFavor = person.netBalance >= 0
-//
-//    Column(
-//        modifier = Modifier
-//            .fillMaxWidth()
-//            .padding(horizontal = 16.dp)
-//            .background(Color.White, RoundedCornerShape(16.dp))
-//            .padding(20.dp)
-//    ) {
-//        Row(
-//            modifier = Modifier.fillMaxWidth(),
-//            horizontalArrangement = Arrangement.SpaceBetween,
-//            verticalAlignment = Alignment.CenterVertically
-//        ) {
-//            Box(
-//                modifier = Modifier
-//                    .background(Color(0xFFE3F9EC), RoundedCornerShape(20.dp))
-//                    .padding(horizontal = 10.dp, vertical = 4.dp)
-//            )
-//        }
-//
-//        Spacer(modifier = Modifier.height(14.dp))
-//
-//        Text("TOTAL NET BALANCE", fontSize = 11.sp, color = Gray, fontWeight = FontWeight.Medium)
-//
-//        Text(
-//            text = "${if (isInYourFavor) "+" else "-"}€${"%.2f".format(kotlin.math.abs(person.netBalance))}",
-//            fontSize = 30.sp,
-//            fontWeight = FontWeight.Bold,
-//            color = if (isInYourFavor) Green else Red
-//        )
-//
-//        Text(
-//            text = if (isInYourFavor) "in your favor" else "you're behind",
-//            fontSize = 12.sp,
-//            color = Gray
-//        )
-//
-//        Spacer(modifier = Modifier.height(16.dp))
-//
-//        Row(
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .background(Purple, RoundedCornerShape(14.dp))
-//                .padding(vertical = 14.dp),
-//            horizontalArrangement = Arrangement.Center
-//        ) {
-//            Text(
-//                "Settle Up €${"%.2f".format(kotlin.math.abs(person.netBalance))}",
-//                color = Color.White,
-//                fontWeight = FontWeight.SemiBold,
-//                fontSize = 15.sp
-//            )
-//        }
-//
-//        //Spacer(modifier = Modifier.height(10.dp))
-//
-////        Text(
-////            "Last settled: ${person.lastSettledDate} (€${"%.2f".format(person.lastSettledAmount)})",
-////            fontSize = 11.sp,
-////            color = Gray,
-////            modifier = Modifier.fillMaxWidth(),
-////            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-////        )
-//    }
-//}
-//
-//  ---------- TRANSACTION HISTORY (all items, no filter tabs) ----------
+// ---------- TRANSACTION HISTORY ----------
 @Composable
-private fun TransactionHistorySection(transactions: List<Transaction>) {
+private fun TransactionHistorySection(transactions: List<PersonExpense>) {
     Column(modifier = Modifier.padding(top = 20.dp)) {
         Row(
             modifier = Modifier
@@ -268,16 +191,17 @@ private fun TransactionHistorySection(transactions: List<Transaction>) {
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Transaction History", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.width(6.dp))
+            Text("Transactions (${transactions.size})", fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
 
-        transactions.forEach { transaction -> TransactionRow(transaction) }
+        transactions.forEach { transaction ->
+            TransactionRowFromFirebase(transaction)
+        }
     }
 }
 
 @Composable
-private fun TransactionRow(transaction: Transaction) {
+private fun TransactionRowFromFirebase(expense: PersonExpense) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -286,53 +210,49 @@ private fun TransactionRow(transaction: Transaction) {
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Icon placeholder
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .background(transaction.iconBackground, CircleShape),
+                .background(Color(0xFFD9E5FB), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text(transaction.icon, fontSize = 16.sp)
+            Text("💰", fontSize = 16.sp)
         }
 
         Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(transaction.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text(transaction.date, fontSize = 11.sp, color = Gray)
-            Text(transaction.note, fontSize = 11.sp, color = Gray)
+            Text(expense.expenseName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(expense.date, fontSize = 11.sp, color = Gray)
+            Text(expense.Amount, fontSize = 11.sp, color = Gray)
         }
 
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                "€${"%.2f".format(transaction.amount)}",
+                expense.Amount,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.height(4.dp))
-            if (transaction.statusIsPill) {
-                Box(
-                    modifier = Modifier
-                        .background(
-                            transaction.statusColor.copy(alpha = 0.15f),
-                            RoundedCornerShape(10.dp)
-                        )
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                ) {
-                    Text(transaction.statusLabel, fontSize = 10.sp, color = transaction.statusColor)
-                }
-            } else {
+            Box(
+                modifier = Modifier
+                    .background(
+                        Color(0xFFE3E0FB),
+                        RoundedCornerShape(10.dp)
+                    )
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            ) {
                 Text(
-                    transaction.statusLabel,
-                    fontSize = 11.sp,
-                    color = transaction.statusColor,
+                    "Pending",
+                    fontSize = 10.sp,
+                    color = Gray,
                     fontWeight = FontWeight.SemiBold
                 )
             }
         }
     }
 }
-
 
 @Preview(showBackground = true, heightDp = 900)
 @Composable

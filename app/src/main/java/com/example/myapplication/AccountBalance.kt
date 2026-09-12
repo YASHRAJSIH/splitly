@@ -13,11 +13,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * FILE PURPOSE: everything about money / debts / profits lives here.
- * (Total balance, "you are owed", "you owe" — the white card at the top of Home.)
- *
- * Nothing in this file knows about navigation or the rest of the screen.
- * It just takes numbers in and draws them.
+ * FILE PURPOSE: Account balance card showing total balance, you are owed, and you owe.
+ * - Shows net balance at top
+ * - Shows breakdown of how much you are owed vs how much you owe
+ * - No hardcoded currency (shows as numbers)
  */
 
 private val Green = Color(0xFF2ECC71)
@@ -25,9 +24,9 @@ private val Red = Color(0xFFE74C3C)
 
 @Composable
 fun AccountBalanceCard(
-    totalBalance: Double = 105.00,
-    youAreOwed: Double = 150.00,
-    youOwe: Double = 45.00
+    totalBalance: Double = 0.0,
+    youAreOwed: Double = 0.0,
+    youOwe: Double = 0.0
 ) {
     Column(
         modifier = Modifier
@@ -37,7 +36,7 @@ fun AccountBalanceCard(
             .padding(20.dp)
     ) {
         Text(
-            text = "TOTAL BALANCE",
+            text = "NET BALANCE",
             fontSize = 12.sp,
             color = Color.Gray,
             fontWeight = FontWeight.Medium
@@ -45,12 +44,12 @@ fun AccountBalanceCard(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // sign handled here so the card works whether the user is net positive or negative
+        // Net balance (total)
         Text(
             text = if (totalBalance >= 0)
-                "+$${"%.2f".format(totalBalance)}"
+                "+${"%.2f".format(totalBalance)}"
             else
-                "-$${"%.2f".format(-totalBalance)}",
+                "-${"%.2f".format(-totalBalance)}",
             fontSize = 32.sp,
             fontWeight = FontWeight.Bold,
             color = if (totalBalance >= 0) Green else Red
@@ -58,23 +57,36 @@ fun AccountBalanceCard(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Breakdown row
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
+            // You Are Owed (CREDIT)
             BalanceStat(
-                label = "You are owed",
-                amount = "+$${"%.2f".format(youAreOwed)}",
+                label = "You Are Owed",
+                amount = "+${"%.2f".format(youAreOwed)}",
                 color = Green,
                 alignEnd = false
             )
+
+            // You Owe (DEBIT)
             BalanceStat(
-                label = "You owe",
-                amount = "-$${"%.2f".format(youOwe)}",
+                label = "You Owe",
+                amount = "-${"%.2f".format(youOwe)}",
                 color = Red,
                 alignEnd = true
             )
         }
+
+        // Explanation
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "Net = You Are Owed - You Owe",
+            fontSize = 10.sp,
+            color = Color.Gray,
+            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+        )
     }
 }
 
@@ -91,9 +103,12 @@ private fun BalanceStat(
     }
 }
 
-// Lets you see this card in Android Studio's Split/Design view without running the app.
 @Preview(showBackground = true)
 @Composable
 private fun AccountBalanceCardPreview() {
-    AccountBalanceCard()
+    AccountBalanceCard(
+        totalBalance = 105.0,
+        youAreOwed = 150.0,
+        youOwe = 45.0
+    )
 }

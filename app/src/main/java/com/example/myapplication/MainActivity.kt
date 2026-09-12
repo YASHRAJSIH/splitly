@@ -35,17 +35,14 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
+
 /**
- * MainActivity's ONLY job: host the Scaffold (top bar / bottom bar / FAB) and
- * decide which page is shown ("home" vs "accounts"). It does not draw any of
- * the actual content — that comes from AccountBalance.kt and GroupsAndPeople.kt.
- *
- * Needed dependencies (add to app/build.gradle if not already there):
- *   implementation("androidx.navigation:navigation-compose:2.8.0")
- *   implementation(platform("androidx.compose:compose-bom:2024.09.00"))
- *   implementation("androidx.compose.material3:material3")
- *   implementation("androidx.activity:activity-compose:1.9.2")
+ * FILE PURPOSE: Main navigation and app structure.
+ * - Scaffold with top bar, bottom bar, FAB
+ * - Navigation between Home, Accounts, Person Details, Add Expense
+ * - Pass navController to HomeScreen so it can refresh data
  */
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,14 +70,22 @@ fun SplitlyApp() {
             }
         }
     ) { innerPadding ->
-        // ---- ROUTING TABLE: this is the "pages path and redirection" part ----
         NavHost(
             navController = navController,
             startDestination = "home",
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable("home") { HomeScreen(navController) }
-            composable("accounts") { AccountsScreen() }
+            // Home screen - loads real Firebase data
+            composable("home") {
+                HomeScreen(navController)
+            }
+
+            // Accounts screen
+            composable("accounts") {
+                AccountsScreen()
+            }
+
+            // Person Details - shows their transactions
             composable(
                 route = "personDetails/{personIndex}",
                 arguments = listOf(navArgument("personIndex") { type = NavType.IntType })
@@ -93,39 +98,17 @@ fun SplitlyApp() {
                     onAddExpenseClick = { navController.navigate("addExpense") }
                 )
             }
+
+            // Add Expense screen
             composable("addExpense") {
-                AddExpenseScreen()
+                AddExpenseScreen(navController = navController)
             }
         }
     }
 }
 
-// The Home page = balance card + groups + people, stacked and scrollable.
-@Composable
-private fun HomeScreen(navController: NavHostController) {
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        item { AccountBalanceCard() }
-        item { Spacer(modifier = Modifier.height(12.dp)) }
-//        item { GroupsSection() }
-//        item { Spacer(modifier = Modifier.height(12.dp)) }
-        item {
-                PeopleSection(onPersonClick = { person ->
-                    val index = samplePeople.indexOf(person)
-                    navController.navigate("personDetails/$index")
-                })
-             // ← added
-        }
-        item { Spacer(modifier = Modifier.height(80.dp)) }
-        item {  }
-    }
-}
-
-// Placeholder second page — build this out next, same pattern as HomeScreen.
 @Composable
 private fun AccountsScreen() {
-//    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-//        Text("Accounts screen — build this next")
-//    }
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         item { AccountBalanceCard() }
         item { Spacer(modifier = Modifier.height(12.dp)) }

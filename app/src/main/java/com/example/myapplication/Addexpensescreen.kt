@@ -2,8 +2,6 @@ package com.example.myapplication
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,59 +30,54 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.runtime.LaunchedEffect
 
 /**
- * FILE PURPOSE: "Add Expense" form.
- *
- * Name is a dropdown now, not free text — options come from samplePeople
- * in GroupsAndPeople.kt, not a second hardcoded list here.
- *
- * Submitting appends to an in-memory list (for the on-screen preview)
- * AND sends just that one new entry to Firebase.
+ * FILE PURPOSE: "Add Expense" form that saves to Firebase and returns home.
+ * - Simple form
+ * - Saves to Firebase (both global and person's history)
+ * - Navigates back to HOME (not just popBackStack)
+ * - Shows success/error messages
  */
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddExpenseScreen() {
-    // pulled from GroupsAndPeople.kt — one source of truth, not duplicated here
+fun AddExpenseScreen(navController: NavHostController) {
     val personNames = samplePeople.map { it.name }
-
     val expenses = remember { mutableStateListOf<PersonExpense>() }
 
-    var name by remember { mutableStateOf<String?>(null) } // null = nothing picked yet
+    // ---- FORM STATE ----
+    var name by remember { mutableStateOf<String?>(null) }
     var nameDropdownExpanded by remember { mutableStateOf(false) }
     var date by remember { mutableStateOf("") }
     var expenseName by remember { mutableStateOf("") }
     var amountText by remember { mutableStateOf("") }
-    var uploadStatus by remember { mutableStateOf<String?>(null) }
-    var showDatePicker by remember { mutableStateOf(false) } // ← Date picker state
-    val datePickerState = rememberDatePickerState() // ← Capture date picker state
 
-    // ---- CURRENCY DROPDOWN ----
+    // ---- CURRENCY ----
     var selectedCurrency by remember { mutableStateOf("USD") }
     var currencyDropdownExpanded by remember { mutableStateOf(false) }
     val currencyOptions = listOf("USD", "EUR", "GBP", "INR", "JPY", "AUD", "CAD", "CHF", "CNY", "MXN")
-
-    // Currency symbols mapping
     val currencySymbols = mapOf(
-        "USD" to "$",
-        "EUR" to "€",
-        "GBP" to "£",
-        "INR" to "₹",
-        "JPY" to "¥",
-        "AUD" to "A$",
-        "CAD" to "C$",
-        "CHF" to "CHF",
-        "CNY" to "¥",
-        "MXN" to "$"
+        "USD" to "$", "EUR" to "€", "GBP" to "£", "INR" to "₹",
+        "JPY" to "¥", "AUD" to "A$", "CAD" to "C$", "CHF" to "CHF",
+        "CNY" to "¥", "MXN" to "$"
     )
 
-    // ---- SPLIT METHOD DROPDOWN ----
+    // ---- DATE PICKER ----
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState()
+
+    // ---- SPLIT METHOD ----
     var selectedSplitMethod by remember { mutableStateOf("You Paid - Split Equally") }
     var splitMethodDropdownExpanded by remember { mutableStateOf(false) }
     val splitMethodOptions = listOf(
@@ -94,10 +87,11 @@ fun AddExpenseScreen() {
         "Another Person Owed - Full Amount",
         "Percentage Split"
     )
-
-    // Percentage split fields
     var yourPercentage by remember { mutableStateOf("50") }
     var otherPersonPercentage by remember { mutableStateOf("50") }
+
+    // ---- STATUS ----
+    var uploadStatus by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -107,14 +101,14 @@ fun AddExpenseScreen() {
         Text("Add Expense", fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ---- name dropdown ----
+        // ---- NAME DROPDOWN ----
         ExposedDropdownMenuBox(
             expanded = nameDropdownExpanded,
             onExpandedChange = { nameDropdownExpanded = it }
         ) {
             OutlinedTextField(
                 value = name ?: "",
-                onValueChange = {}, // typing disabled — pick from the list only
+                onValueChange = {},
                 readOnly = true,
                 label = { Text("Name") },
                 placeholder = { Text("Choose from the list") },
@@ -142,7 +136,7 @@ fun AddExpenseScreen() {
         }
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ---- DATE PICKER FIELD ----
+        // ---- DATE PICKER ----
         OutlinedTextField(
             value = date,
             onValueChange = { },
@@ -156,13 +150,11 @@ fun AddExpenseScreen() {
             }
         )
 
-        // Show calendar dialog when clicked
         if (showDatePicker) {
             DatePickerDialog(
                 onDismissRequest = { showDatePicker = false },
                 confirmButton = {
                     Button(onClick = {
-                        // Format the selected date and display it
                         datePickerState.selectedDateMillis?.let { millis ->
                             val dateFormatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
                             date = dateFormatter.format(Date(millis))
@@ -179,9 +171,9 @@ fun AddExpenseScreen() {
                 )
             }
         }
-
         Spacer(modifier = Modifier.height(8.dp))
 
+        // ---- EXPENSE NAME ----
         OutlinedTextField(
             value = expenseName,
             onValueChange = { expenseName = it },
@@ -190,13 +182,11 @@ fun AddExpenseScreen() {
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ---- AMOUNT WITH CURRENCY DROPDOWN ----
+        // ---- AMOUNT WITH CURRENCY ----
         Row(
-            modifier = Modifier
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Currency Dropdown
             ExposedDropdownMenuBox(
                 expanded = currencyDropdownExpanded,
                 onExpandedChange = { currencyDropdownExpanded = it },
@@ -230,7 +220,6 @@ fun AddExpenseScreen() {
                 }
             }
 
-            // Amount Input
             OutlinedTextField(
                 value = amountText,
                 onValueChange = { amountText = it },
@@ -241,7 +230,7 @@ fun AddExpenseScreen() {
         }
         Spacer(modifier = Modifier.height(10.dp))
 
-        // ---- SPLIT METHOD DROPDOWN ----
+        // ---- SPLIT METHOD ----
         ExposedDropdownMenuBox(
             expanded = splitMethodDropdownExpanded,
             onExpandedChange = { splitMethodDropdownExpanded = it }
@@ -275,18 +264,16 @@ fun AddExpenseScreen() {
         }
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Show percentage input fields only for Percentage Split
+        // ---- PERCENTAGE SPLIT ----
         if (selectedSplitMethod == "Percentage Split") {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedTextField(
                     value = yourPercentage,
                     onValueChange = {
                         yourPercentage = it
-                        // Auto-calculate other person's percentage
                         val yourPct = it.toIntOrNull() ?: 0
                         otherPersonPercentage = (100 - yourPct).toString()
                     },
@@ -299,47 +286,57 @@ fun AddExpenseScreen() {
                     value = otherPersonPercentage,
                     onValueChange = {
                         otherPersonPercentage = it
-                        // Auto-calculate your percentage
                         val otherPct = it.toIntOrNull() ?: 0
                         yourPercentage = (100 - otherPct).toString()
                     },
-                    label = { Text("Other Person %") },
+                    label = { Text("Other %") },
                     placeholder = { Text("50") },
                     modifier = Modifier.weight(0.5f)
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Show total percentage
             val totalPercentage = (yourPercentage.toIntOrNull() ?: 0) + (otherPersonPercentage.toIntOrNull() ?: 0)
             Text(
-                text = "Total: $totalPercentage% ${if (totalPercentage == 100) "✓" else "⚠ Must be 100%"}",
+                text = "Total: $totalPercentage%",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(horizontal = 4.dp)
+                color = if (totalPercentage == 100) Color.Green else Color.Red
             )
             Spacer(modifier = Modifier.height(10.dp))
         }
 
-        // Split Method Description
+        // ---- SPLIT DESCRIPTION ----
         Text(
             text = when(selectedSplitMethod) {
-                "You Paid - Split Equally" -> "You paid full amount, split equally with another person"
+                "You Paid - Split Equally" -> "You paid full amount, split equally"
                 "You Owed - Full Amount" -> "You owe the entire amount"
                 "Another Person Paid - Split Equally" -> "Another person paid, you split equally"
                 "Another Person Owed - Full Amount" -> "Another person owes you the full amount"
-                "Percentage Split" -> "Custom percentage split (You: $yourPercentage% | Other: $otherPersonPercentage%)"
+                "Percentage Split" -> "You: $yourPercentage% | Other: $otherPersonPercentage%"
                 else -> ""
             },
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 4.dp)
+            color = Color.Gray
         )
         Spacer(modifier = Modifier.height(16.dp))
 
+        // ---- ADD BUTTON ----
         Button(
             onClick = {
-                // Check if percentage split total is 100
+                // Simple validation
+                if (name == null || date.isBlank() || expenseName.isBlank() || amountText.isBlank()) {
+                    uploadStatus = "❌ Please fill all fields"
+                    return@Button
+                }
+
+                val amountValue = amountText.toDoubleOrNull()
+                if (amountValue == null || amountValue <= 0) {
+                    uploadStatus = "❌ Please enter a valid amount"
+                    return@Button
+                }
+
                 if (selectedSplitMethod == "Percentage Split") {
                     val totalPct = (yourPercentage.toIntOrNull() ?: 0) + (otherPersonPercentage.toIntOrNull() ?: 0)
                     if (totalPct != 100) {
@@ -348,32 +345,21 @@ fun AddExpenseScreen() {
                     }
                 }
 
-                // amountText.toDouble() would CRASH if this field is empty
-                // or not a number — toDoubleOrNull() + this guard stops that
-                val amountValue = amountText.toDoubleOrNull()
-                if (name == null || expenseName.isBlank() || amountValue == null) return@Button
-
-                // Calculate Debit/Credit based on split method
+                // Calculate split
                 val (debitAmount, creditAmount) = when (selectedSplitMethod) {
                     "You Paid - Split Equally" -> {
-                        // You paid full amount, split equally with other person
-                        // You paid 100, get back 50 from other person
                         Pair((-(amountValue / 2)).toString(), (amountValue / 2).toString())
                     }
                     "You Owed - Full Amount" -> {
-                        // You owe the entire amount
                         Pair((-amountValue).toString(), "0")
                     }
                     "Another Person Paid - Split Equally" -> {
-                        // Another person paid, you owe them half
                         Pair((-(amountValue / 2)).toString(), "0")
                     }
                     "Another Person Owed - Full Amount" -> {
-                        // Another person owes you the full amount
                         Pair("0", amountValue.toString())
                     }
                     "Percentage Split" -> {
-                        // Custom percentage split
                         val yourPct = yourPercentage.toDoubleOrNull() ?: 50.0
                         val otherPct = otherPersonPercentage.toDoubleOrNull() ?: 50.0
                         val yourAmount = (amountValue * yourPct) / 100
@@ -384,53 +370,76 @@ fun AddExpenseScreen() {
                 }
 
                 val newExpense = PersonExpense(
-                    name = name!!, // safe — guarded by the check above
+                    name = name!!,
                     date = date,
                     expenseName = expenseName,
-                    Amount = "${currencySymbols[selectedCurrency]} $amountText ($selectedCurrency)", // ← Include currency symbol
+                    Amount = "${currencySymbols[selectedCurrency]} $amountText ($selectedCurrency)",
                     Debit = debitAmount,
                     credit = creditAmount
                 )
 
-                expenses.add(newExpense) // keeps the on-screen list below in sync
+                expenses.add(newExpense)
 
-                // only this one new entry gets sent — not the whole list —
-                // otherwise every click would re-upload everything added before it
+                // Upload to Firebase
                 uploadPersonExpenses(listOf(newExpense)) { success, message ->
-                    uploadStatus = if (success) "✅ $message" else "❌ $message"
-                }
+                    if (success) {
+                        println("✅ Expense saved! Navigating to home...")
+                        uploadStatus = "✅ Expense added! Returning home..."
 
-                // clear the form — name stays as the last-picked person,
-                // not reset, since you're likely adding another expense
-                // for them right after
-                date = ""
-                expenseName = ""
-                amountText = ""
+                        // Navigate to home after showing success message
+                        navController.navigate("home") {
+                            // Clear the back stack up to home
+                            popUpTo("home") { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    } else {
+                        uploadStatus = "❌ Failed: $message"
+                        println("❌ Upload failed: $message")
+                    }
+                }
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF5B6EF5)
+            )
         ) {
-            Text("Add Expense")
+            Text("Add Expense", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
 
+        // ---- STATUS MESSAGE ----
         uploadStatus?.let { status ->
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(status, fontSize = 12.sp)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                status,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (status.contains("✅")) Color.Green else Color.Red
+            )
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text("Added so far (${expenses.size})", fontWeight = FontWeight.SemiBold)
-        Spacer(modifier = Modifier.height(8.dp))
+        // ---- PREVIEW ----
+        if (expenses.isNotEmpty()) {
+            Text("Preview (${expenses.size})", fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(8.dp))
 
-        // proves the list is actually filling up — remove once you trust it
-        LazyColumn {
-            items(expenses) { expense ->
-                Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                    Text("${expense.name} — ${expense.expenseName}", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "${expense.date} · Credit: ${expense.credit} · Debit: ${expense.Debit}",
-                        fontSize = 12.sp
-                    )
+            LazyColumn {
+                items(expenses) { expense ->
+                    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                        Text(
+                            "${expense.name} — ${expense.expenseName}",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            "${expense.date} · ${expense.Amount}",
+                            fontSize = 11.sp,
+                            color = Color.Gray
+                        )
+                    }
                 }
             }
         }
