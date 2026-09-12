@@ -2,6 +2,8 @@ package com.example.myapplication
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -62,6 +64,40 @@ fun AddExpenseScreen() {
     var uploadStatus by remember { mutableStateOf<String?>(null) }
     var showDatePicker by remember { mutableStateOf(false) } // ← Date picker state
     val datePickerState = rememberDatePickerState() // ← Capture date picker state
+
+    // ---- CURRENCY DROPDOWN ----
+    var selectedCurrency by remember { mutableStateOf("USD") }
+    var currencyDropdownExpanded by remember { mutableStateOf(false) }
+    val currencyOptions = listOf("USD", "EUR", "GBP", "INR", "JPY", "AUD", "CAD", "CHF", "CNY", "MXN")
+
+    // Currency symbols mapping
+    val currencySymbols = mapOf(
+        "USD" to "$",
+        "EUR" to "€",
+        "GBP" to "£",
+        "INR" to "₹",
+        "JPY" to "¥",
+        "AUD" to "A$",
+        "CAD" to "C$",
+        "CHF" to "CHF",
+        "CNY" to "¥",
+        "MXN" to "$"
+    )
+
+    // ---- SPLIT METHOD DROPDOWN ----
+    var selectedSplitMethod by remember { mutableStateOf("You Paid - Split Equally") }
+    var splitMethodDropdownExpanded by remember { mutableStateOf(false) }
+    val splitMethodOptions = listOf(
+        "You Paid - Split Equally",
+        "You Owed - Full Amount",
+        "Another Person Paid - Split Equally",
+        "Another Person Owed - Full Amount",
+        "Percentage Split"
+    )
+
+    // Percentage split fields
+    var yourPercentage by remember { mutableStateOf("50") }
+    var otherPersonPercentage by remember { mutableStateOf("50") }
 
     Column(
         modifier = Modifier
@@ -154,31 +190,206 @@ fun AddExpenseScreen() {
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        OutlinedTextField(
-            value = amountText,
-            onValueChange = { amountText = it },
-            label = { Text("Amount") },
-            modifier = Modifier.fillMaxWidth()
-        )
+        // ---- AMOUNT WITH CURRENCY DROPDOWN ----
+        Row(
+            modifier = Modifier
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Currency Dropdown
+            ExposedDropdownMenuBox(
+                expanded = currencyDropdownExpanded,
+                onExpandedChange = { currencyDropdownExpanded = it },
+                modifier = Modifier.weight(0.3f)
+            ) {
+                OutlinedTextField(
+                    value = selectedCurrency,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Currency") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = currencyDropdownExpanded)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                )
+                ExposedDropdownMenu(
+                    expanded = currencyDropdownExpanded,
+                    onDismissRequest = { currencyDropdownExpanded = false }
+                ) {
+                    currencyOptions.forEach { currency ->
+                        DropdownMenuItem(
+                            text = { Text(currency) },
+                            onClick = {
+                                selectedCurrency = currency
+                                currencyDropdownExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Amount Input
+            OutlinedTextField(
+                value = amountText,
+                onValueChange = { amountText = it },
+                label = { Text("Amount") },
+                placeholder = { Text("${currencySymbols[selectedCurrency]} 0.00") },
+                modifier = Modifier.weight(0.7f)
+            )
+        }
         Spacer(modifier = Modifier.height(10.dp))
 
-        Text("Amount is Equally Divided", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        // ---- SPLIT METHOD DROPDOWN ----
+        ExposedDropdownMenuBox(
+            expanded = splitMethodDropdownExpanded,
+            onExpandedChange = { splitMethodDropdownExpanded = it }
+        ) {
+            OutlinedTextField(
+                value = selectedSplitMethod,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Split Method") },
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = splitMethodDropdownExpanded)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+            )
+            ExposedDropdownMenu(
+                expanded = splitMethodDropdownExpanded,
+                onDismissRequest = { splitMethodDropdownExpanded = false }
+            ) {
+                splitMethodOptions.forEach { method ->
+                    DropdownMenuItem(
+                        text = { Text(method) },
+                        onClick = {
+                            selectedSplitMethod = method
+                            splitMethodDropdownExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Show percentage input fields only for Percentage Split
+        if (selectedSplitMethod == "Percentage Split") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = yourPercentage,
+                    onValueChange = {
+                        yourPercentage = it
+                        // Auto-calculate other person's percentage
+                        val yourPct = it.toIntOrNull() ?: 0
+                        otherPersonPercentage = (100 - yourPct).toString()
+                    },
+                    label = { Text("You Owe %") },
+                    placeholder = { Text("50") },
+                    modifier = Modifier.weight(0.5f)
+                )
+
+                OutlinedTextField(
+                    value = otherPersonPercentage,
+                    onValueChange = {
+                        otherPersonPercentage = it
+                        // Auto-calculate your percentage
+                        val otherPct = it.toIntOrNull() ?: 0
+                        yourPercentage = (100 - otherPct).toString()
+                    },
+                    label = { Text("Other Person %") },
+                    placeholder = { Text("50") },
+                    modifier = Modifier.weight(0.5f)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Show total percentage
+            val totalPercentage = (yourPercentage.toIntOrNull() ?: 0) + (otherPersonPercentage.toIntOrNull() ?: 0)
+            Text(
+                text = "Total: $totalPercentage% ${if (totalPercentage == 100) "✓" else "⚠ Must be 100%"}",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
+        // Split Method Description
+        Text(
+            text = when(selectedSplitMethod) {
+                "You Paid - Split Equally" -> "You paid full amount, split equally with another person"
+                "You Owed - Full Amount" -> "You owe the entire amount"
+                "Another Person Paid - Split Equally" -> "Another person paid, you split equally"
+                "Another Person Owed - Full Amount" -> "Another person owes you the full amount"
+                "Percentage Split" -> "Custom percentage split (You: $yourPercentage% | Other: $otherPersonPercentage%)"
+                else -> ""
+            },
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
             onClick = {
+                // Check if percentage split total is 100
+                if (selectedSplitMethod == "Percentage Split") {
+                    val totalPct = (yourPercentage.toIntOrNull() ?: 0) + (otherPersonPercentage.toIntOrNull() ?: 0)
+                    if (totalPct != 100) {
+                        uploadStatus = "❌ Percentages must add up to 100%"
+                        return@Button
+                    }
+                }
+
                 // amountText.toDouble() would CRASH if this field is empty
                 // or not a number — toDoubleOrNull() + this guard stops that
                 val amountValue = amountText.toDoubleOrNull()
                 if (name == null || expenseName.isBlank() || amountValue == null) return@Button
 
+                // Calculate Debit/Credit based on split method
+                val (debitAmount, creditAmount) = when (selectedSplitMethod) {
+                    "You Paid - Split Equally" -> {
+                        // You paid full amount, split equally with other person
+                        // You paid 100, get back 50 from other person
+                        Pair((-(amountValue / 2)).toString(), (amountValue / 2).toString())
+                    }
+                    "You Owed - Full Amount" -> {
+                        // You owe the entire amount
+                        Pair((-amountValue).toString(), "0")
+                    }
+                    "Another Person Paid - Split Equally" -> {
+                        // Another person paid, you owe them half
+                        Pair((-(amountValue / 2)).toString(), "0")
+                    }
+                    "Another Person Owed - Full Amount" -> {
+                        // Another person owes you the full amount
+                        Pair("0", amountValue.toString())
+                    }
+                    "Percentage Split" -> {
+                        // Custom percentage split
+                        val yourPct = yourPercentage.toDoubleOrNull() ?: 50.0
+                        val otherPct = otherPersonPercentage.toDoubleOrNull() ?: 50.0
+                        val yourAmount = (amountValue * yourPct) / 100
+                        val otherAmount = (amountValue * otherPct) / 100
+                        Pair((-yourAmount).toString(), otherAmount.toString())
+                    }
+                    else -> Pair("0", "0")
+                }
+
                 val newExpense = PersonExpense(
                     name = name!!, // safe — guarded by the check above
                     date = date,
                     expenseName = expenseName,
-                    Amount = amountText,
-                    Debit = (-(amountValue / 2)).toString(),
-                    credit = (amountValue / 2).toString()
+                    Amount = "${currencySymbols[selectedCurrency]} $amountText ($selectedCurrency)", // ← Include currency symbol
+                    Debit = debitAmount,
+                    credit = creditAmount
                 )
 
                 expenses.add(newExpense) // keeps the on-screen list below in sync
