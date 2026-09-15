@@ -73,7 +73,7 @@ fun AccountBalanceCard(
             // You Owe (DEBIT)
             BalanceStat(
                 label = "Due - To give",
-                amount = "-${"%.2f".format(Due)}",
+                amount = "${"%.2f".format(Due)}",
                 color = Red,
                 alignEnd = true
             )
@@ -82,7 +82,7 @@ fun AccountBalanceCard(
         // Explanation
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "Net = You Are Owed - You Owe",
+            text = "Net = Money You get + Money you give",
             fontSize = 10.sp,
             color = Color.Gray,
             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic

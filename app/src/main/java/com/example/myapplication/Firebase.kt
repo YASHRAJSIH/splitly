@@ -193,15 +193,6 @@ fun getAllExpenses(
     return { expensesRef.removeEventListener(listener) }
 }
 
-/** Your net balance with one person. Positive = they owe you. */
-fun netBalance(transactions: List<PersonExpense>): Double =
-    transactions.sumOf { it.accountHolder }.toMoney()
-
-
-/**
- * Net position per person, summed over every transaction.
- * Key = person's name as stored on the row, value = sum of anotherPerson.
- */
 fun totalsPerPerson(expenses: List<PersonExpense>): Map<String, Double> =
     expenses
         .groupBy { it.name.trim() }
@@ -225,12 +216,12 @@ fun balanceSummary(expenses: List<PersonExpense>): BalanceSummary {
     // not get counted on both sides
     val totals = totalsPerPerson(expenses).values
 
-    val getBack = totals.filter { it < 0 }.sum()
-    val due = totals.filter { it > 0 }.sum()
+    val due = totals.filter { it < 0 }.sum()
+    val getBack = totals.filter { it > 0 }.sum()
 
     return BalanceSummary(
-        due = getBack.toMoney(),
-        getBack = due.toMoney(),
-        net = (getBack - due).toMoney()
+        getBack = getBack.toMoney(),
+        due = due.toMoney(),
+        net = (getBack + due).toMoney()
     )
 }

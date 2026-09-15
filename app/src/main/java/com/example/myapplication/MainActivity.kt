@@ -2,7 +2,6 @@ package com.example.myapplication
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -22,8 +21,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
@@ -109,8 +111,23 @@ fun SplitlyApp() {
 
 @Composable
 private fun AccountsScreen() {
+    var allExpenses by remember { mutableStateOf<List<PersonExpense>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        getAllExpenses { expenses ->
+            allExpenses = expenses
+            isLoading = false
+        }
+    }
+    val summary = remember(allExpenses) { balanceSummary(allExpenses) }
+
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        item { AccountBalanceCard() }
+        item { AccountBalanceCard(
+            totalBalance = summary.net,
+            YouGet = summary.getBack,
+            Due = summary.due
+        )}
         item { Spacer(modifier = Modifier.height(12.dp)) }
         item { MonthlyExpensesCard() }
         item { Spacer(modifier = Modifier.height(12.dp)) }

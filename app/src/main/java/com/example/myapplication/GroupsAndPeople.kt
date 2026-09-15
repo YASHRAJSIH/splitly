@@ -49,8 +49,8 @@ private val sampleGroups = listOf(
 )
 
 public val samplePeople = listOf(
-    PersonItem("Ankita", 50.0, Color(0xFFE8B98C)),
-    PersonItem("Kishan", -20.0, Color(0xFFD98C8C)),
+    PersonItem("Kishan", 50.0, Color(0xFFE8B98C)),
+    PersonItem("Ankita", -20.0, Color(0xFFD98C8C)),
     PersonItem("Devanshi", 0.0, Color(0xFFB0B0B0))
 )
 
