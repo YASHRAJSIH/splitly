@@ -25,8 +25,8 @@ private val Red = Color(0xFFE74C3C)
 @Composable
 fun AccountBalanceCard(
     totalBalance: Double = 0.0,
-    youAreOwed: Double = 0.0,
-    youOwe: Double = 0.0
+    YouGet: Double = 0.0,
+    Due: Double = 0.0
 ) {
     Column(
         modifier = Modifier
@@ -64,16 +64,16 @@ fun AccountBalanceCard(
         ) {
             // You Are Owed (CREDIT)
             BalanceStat(
-                label = "You Are Owed",
-                amount = "+${"%.2f".format(youAreOwed)}",
+                label = "Get back",
+                amount = "+${"%.2f".format(YouGet)}",
                 color = Green,
                 alignEnd = false
             )
 
             // You Owe (DEBIT)
             BalanceStat(
-                label = "You Owe",
-                amount = "-${"%.2f".format(youOwe)}",
+                label = "Due - To give",
+                amount = "-${"%.2f".format(Due)}",
                 color = Red,
                 alignEnd = true
             )
@@ -108,7 +108,7 @@ private fun BalanceStat(
 private fun AccountBalanceCardPreview() {
     AccountBalanceCard(
         totalBalance = 105.0,
-        youAreOwed = 150.0,
-        youOwe = 45.0
+        YouGet = 150.0,
+        Due = 45.0
     )
 }

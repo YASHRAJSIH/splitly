@@ -77,11 +77,11 @@ fun HomeScreen(navController: NavHostController) {
         } else {
             // Account Balance Card with proper calculation
             item {
-                val netBalance = totalOwedAmount - totalOwesAmount
+                val netBalance = totalOwedAmount
                 AccountBalanceCard(
                     totalBalance = netBalance,
-                    youAreOwed = totalOwedAmount,
-                    youOwe = totalOwesAmount
+                    YouGet = totalOwedAmount,
+                    Due = totalOwesAmount
                 )
             }
 
@@ -126,9 +126,7 @@ fun HomeScreen(navController: NavHostController) {
  *
  * Returns: Pair of (peopleList, totalYouAreOwed, totalYouOwe)
  */
-fun calculateBalancesFromExpenses(
-    expenses: List<PersonExpense>
-): Triple<List<PersonItem>, Double, Double> {
+fun calculateBalancesFromExpenses(expenses: List<PersonExpense>): Triple<List<PersonItem>, Double, Double> {
     val personBalances = mutableMapOf<String, Double>()
     var totalYouAreOwed = 0.0  // Sum of all CREDITS (positive amounts they owe you)
     var totalYouOwe = 0.0      // Sum of all DEBITS (negative amounts you owe them, stored as positive)
@@ -136,8 +134,8 @@ fun calculateBalancesFromExpenses(
     // Go through each expense
     expenses.forEach { expense ->
         val name = expense.name
-        val credit = expense.credit.toDoubleOrNull() ?: 0.0
-        val debit = expense.Debit.toDoubleOrNull() ?: 0.0
+        val Accountholder = expense.accountHolder ?: 0.0
+        val AnotherPerson = expense.anotherPerson ?: 0.0
 
         // Initialize if not exists
         if (!personBalances.containsKey(name)) {
@@ -147,18 +145,19 @@ fun calculateBalancesFromExpenses(
         // Update balance for this person
         // credit = positive (they owe you)
         // debit = negative (you owe them)
-        val netAmount = credit + debit  // debit is already negative
-        personBalances[name] = personBalances[name]!! + netAmount
+//        val netAmount = credit + debit  // debit is already negative
+//        personBalances[name] = personBalances[name]!! + netAmount
 
         // Update TOTALS (from YOU perspective)
         // If credit > 0: They owe you (positive for "you are owed")
-        if (credit > 0) {
-            totalYouAreOwed += credit
-        }
-        // If debit < 0: You owe them (convert to positive for "you owe")
-        if (debit < 0) {
-            totalYouOwe += kotlin.math.abs(debit)
-        }
+
+                totalYouOwe += Accountholder
+             totalYouAreOwed += AnotherPerson
+
+//        // If debit < 0: You owe them (convert to positive for "you owe")
+//        if (debit < 0) {
+//            totalYouOwe += kotlin.math.abs(debit)
+//        }
     }
 
     // Convert to PersonItem list
@@ -173,7 +172,6 @@ fun calculateBalancesFromExpenses(
     println("📊 Balance Breakdown:")
     println("   Total You Are Owed: $totalYouAreOwed")
     println("   Total You Owe: $totalYouOwe")
-    println("   Net Balance: ${totalYouAreOwed - totalYouOwe}")
 
     return Triple(peopleList, totalYouAreOwed, totalYouOwe)
 }

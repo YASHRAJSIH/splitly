@@ -40,14 +40,18 @@ import java.util.Date
 import java.util.Locale
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.runtime.LaunchedEffect
 
 /**
  * FILE PURPOSE: "Add Expense" form that saves to Firebase and returns home.
- * - Simple form
- * - Saves to Firebase (both global and person's history)
- * - Navigates back to HOME (not just popBackStack)
- * - Shows success/error messages
+ *
+ * WHAT CHANGED IN THE MONEY PATH
+ * The amount is now parsed once into a Double and stored as a number, with the
+ * currency code in its own field. The symbol is only ever used for display.
+ * Storing "€ 42.50 (EUR)" made the amount unusable for arithmetic — you could not
+ * sum a balance without re-parsing a string you had formatted yourself.
+ *
+ * The split now produces ONE number: the account holder's net position. The other
+ * party's is its exact negation, so the two can never disagree by a rounding cent.
  */
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,12 +70,7 @@ fun AddExpenseScreen(navController: NavHostController) {
     // ---- CURRENCY ----
     var selectedCurrency by remember { mutableStateOf("USD") }
     var currencyDropdownExpanded by remember { mutableStateOf(false) }
-    val currencyOptions = listOf("USD", "EUR", "GBP", "INR", "JPY", "AUD", "CAD", "CHF", "CNY", "MXN")
-    val currencySymbols = mapOf(
-        "USD" to "$", "EUR" to "€", "GBP" to "£", "INR" to "₹",
-        "JPY" to "¥", "AUD" to "A$", "CAD" to "C$", "CHF" to "CHF",
-        "CNY" to "¥", "MXN" to "$"
-    )
+    val currencyOptions = currencySymbols.keys.toList()
 
     // ---- DATE PICKER ----
     var showDatePicker by remember { mutableStateOf(false) }
@@ -92,6 +91,7 @@ fun AddExpenseScreen(navController: NavHostController) {
 
     // ---- STATUS ----
     var uploadStatus by remember { mutableStateOf<String?>(null) }
+    var isSaving by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -224,7 +224,7 @@ fun AddExpenseScreen(navController: NavHostController) {
                 value = amountText,
                 onValueChange = { amountText = it },
                 label = { Text("Amount") },
-                placeholder = { Text("${currencySymbols[selectedCurrency]} 0.00") },
+                placeholder = { Text("${symbolFor(selectedCurrency)} 0.00") },
                 modifier = Modifier.weight(0.7f)
             )
         }
@@ -308,12 +308,12 @@ fun AddExpenseScreen(navController: NavHostController) {
 
         // ---- SPLIT DESCRIPTION ----
         Text(
-            text = when(selectedSplitMethod) {
-                "You Paid - Split Equally" -> "You paid full amount, split equally"
+            text = when (selectedSplitMethod) {
+                "You Paid - Split Equally" -> "You paid the full amount, split equally"
                 "You Owed - Full Amount" -> "You owe the entire amount"
-                "Another Person Paid - Split Equally" -> "Another person paid, you split equally"
-                "Another Person Owed - Full Amount" -> "Another person owes you the full amount"
-                "Percentage Split" -> "You: $yourPercentage% | Other: $otherPersonPercentage%"
+                "Another Person Paid - Split Equally" -> "They paid, you split equally"
+                "Another Person Owed - Full Amount" -> "They owe you the full amount"
+                "Percentage Split" -> "You paid — you cover $yourPercentage%, they owe $otherPersonPercentage%"
                 else -> ""
             },
             fontSize = 12.sp,
@@ -324,77 +324,81 @@ fun AddExpenseScreen(navController: NavHostController) {
 
         // ---- ADD BUTTON ----
         Button(
+            enabled = !isSaving,
             onClick = {
-                // Simple validation
                 if (name == null || date.isBlank() || expenseName.isBlank() || amountText.isBlank()) {
                     uploadStatus = "❌ Please fill all fields"
                     return@Button
                 }
 
-                val amountValue = amountText.toDoubleOrNull()
+                // Parse once, here. Everything downstream is a number.
+                val amountValue = amountText.trim().toDoubleOrNull()
                 if (amountValue == null || amountValue <= 0) {
                     uploadStatus = "❌ Please enter a valid amount"
                     return@Button
                 }
 
-                if (selectedSplitMethod == "Percentage Split") {
-                    val totalPct = (yourPercentage.toIntOrNull() ?: 0) + (otherPersonPercentage.toIntOrNull() ?: 0)
-                    if (totalPct != 100) {
-                        uploadStatus = "❌ Percentages must add up to 100%"
-                        return@Button
-                    }
-                }
+//                if (selectedSplitMethod == "Percentage Split") {
+//                    val totalPct = (yourPercentage.toIntOrNull() ?: 0) + (otherPersonPercentage.toIntOrNull() ?: 0)
+//                    if (totalPct != 100) {
+//                        uploadStatus = "❌ Percentages must add up to 100%"
+//                        return@Button
+//                    }
+//                }
 
-                // Calculate split
-                val (debitAmount, creditAmount) = when (selectedSplitMethod) {
-                    "You Paid - Split Equally" -> {
-                        Pair((-(amountValue / 2)).toString(), (amountValue / 2).toString())
-                    }
-                    "You Owed - Full Amount" -> {
-                        Pair((-amountValue).toString(), "0")
-                    }
-                    "Another Person Paid - Split Equally" -> {
-                        Pair((-(amountValue / 2)).toString(), "0")
-                    }
-                    "Another Person Owed - Full Amount" -> {
-                        Pair("0", amountValue.toString())
-                    }
+                // ---- SPLIT ----
+                // Positive = the other person owes you. Negative = you owe them.
+                // Only the account holder's side is calculated; the other side is
+                // its negation, which is why the two can never fall out of balance.
+                val accountHolderShare = when (selectedSplitMethod) {
+                    "You Paid - Split Equally" ->
+                        amountValue / 2                       // they owe you their half
+
+                    "You Owed - Full Amount" ->
+                        -amountValue                          // you owe all of it
+
+                    "Another Person Paid - Split Equally" ->
+                        -(amountValue / 2)                    // you owe them your half
+
+                    "Another Person Owed - Full Amount" ->
+                        amountValue                           // they owe you all of it
+
                     "Percentage Split" -> {
-                        val yourPct = yourPercentage.toDoubleOrNull() ?: 50.0
+                        // Assumes YOU paid the bill and they owe their percentage.
+                        // The "You Owe %" label doesn't say who paid — if they paid
+                        // instead, this sign is wrong. Split this into two options
+                        // ("You paid – %" / "They paid – %") when you get a chance.
                         val otherPct = otherPersonPercentage.toDoubleOrNull() ?: 50.0
-                        val yourAmount = (amountValue * yourPct) / 100
-                        val otherAmount = (amountValue * otherPct) / 100
-                        Pair((-yourAmount).toString(), otherAmount.toString())
+                        amountValue * (otherPct / 100.0)
                     }
-                    else -> Pair("0", "0")
-                }
+
+                    else -> 0.0
+                }.toMoney()
 
                 val newExpense = PersonExpense(
                     name = name!!,
                     date = date,
                     expenseName = expenseName,
-                    Amount = "${currencySymbols[selectedCurrency]} $amountText ($selectedCurrency)",
-                    Debit = debitAmount,
-                    credit = creditAmount
+                    amount = amountValue.toMoney(),
+                    currency = selectedCurrency,
+                    accountHolder = -accountHolderShare,
+                    anotherPerson = accountHolderShare
                 )
 
-                expenses.add(newExpense)
-
-                // Upload to Firebase
+                isSaving = true
                 uploadPersonExpenses(listOf(newExpense)) { success, message ->
+                    isSaving = false
                     if (success) {
-                        println("✅ Expense saved! Navigating to home...")
+                        // Only add to the local preview after the write actually
+                        // landed, so the UI never shows an expense that failed.
+                        expenses.add(newExpense)
                         uploadStatus = "✅ Expense added! Returning home..."
-
-                        // Navigate to home after showing success message
                         navController.navigate("home") {
-                            // Clear the back stack up to home
                             popUpTo("home") { inclusive = false }
                             launchSingleTop = true
                         }
                     } else {
                         uploadStatus = "❌ Failed: $message"
-                        println("❌ Upload failed: $message")
                     }
                 }
             },
@@ -405,7 +409,12 @@ fun AddExpenseScreen(navController: NavHostController) {
                 containerColor = Color(0xFF5B6EF5)
             )
         ) {
-            Text("Add Expense", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(
+                if (isSaving) "Saving..." else "Add Expense",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
         }
 
         // ---- STATUS MESSAGE ----
@@ -435,7 +444,7 @@ fun AddExpenseScreen(navController: NavHostController) {
                             fontSize = 13.sp
                         )
                         Text(
-                            "${expense.date} · ${expense.Amount}",
+                            "${expense.date} · ${expense.displayAmount()}",
                             fontSize = 11.sp,
                             color = Color.Gray
                         )

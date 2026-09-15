@@ -45,47 +45,6 @@ data class PersonDetails(
     val amount: Double,
 )
 
-data class Transaction(
-    val icon: String,
-    val iconBackground: Color,
-    val title: String,
-    val date: String,
-    val paidBy: String,
-    val amount: Double,
-    val note: String,
-    val statusLabel: String,
-    val statusColor: Color,
-    val statusIsPill: Boolean
-)
-
-// Sample transactions (fallback if Firebase is empty)
-private val sampleTransactions = listOf(
-    Transaction(
-        icon = "🍽️",
-        iconBackground = Color(0xFFFDEBD9),
-        title = "Dinner at Osteria",
-        date = "12 Sep 2026",
-        paidBy = "You",
-        amount = 60.00,
-        note = "Split equally",
-        statusLabel = "50/50 Split",
-        statusColor = Gray,
-        statusIsPill = true
-    ),
-    Transaction(
-        icon = "🚕",
-        iconBackground = Color(0xFFD9F2EC),
-        title = "Airport Taxi",
-        date = "10 Sep 2026",
-        paidBy = "Them",
-        amount = 24.00,
-        note = "You split equally",
-        statusLabel = "Unsettled",
-        statusColor = Gray,
-        statusIsPill = true
-    )
-)
-
 // ---------- SCREEN ----------
 @Composable
 fun PersonDetailsScreen(
@@ -113,7 +72,7 @@ fun PersonDetailsScreen(
             .background(BgGray)
             .verticalScroll(rememberScrollState())
     ) {
-        HeaderRow(person)
+        HeaderRow(person, transactions = realTransactions )
         Spacer(modifier = Modifier.height(12.dp))
 
         if (realTransactions.isEmpty()) {
@@ -146,7 +105,15 @@ fun PersonDetailsScreen(
 
 // ---------- HEADER ----------
 @Composable
-private fun HeaderRow(person: PersonDetails) {
+private fun HeaderRow(person: PersonDetails, transactions: List<PersonExpense>) {
+    // One balance per currency. Recomputed only when the list changes.
+    val balances = remember(transactions) {
+        transactions
+            .groupBy { it.currency }
+            .mapValues { (_, rows) -> rows.sumOf { it.anotherPerson }.toMoney() }
+            .filterValues { it != 0.0 }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -160,7 +127,7 @@ private fun HeaderRow(person: PersonDetails) {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                person.name.first().uppercase(),
+                person.name.firstOrNull()?.uppercase() ?: "?",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp
@@ -171,12 +138,21 @@ private fun HeaderRow(person: PersonDetails) {
 
         Column {
             Text(person.name, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            Text(
-                "${if (person.amount >= 0) "+" else ""}${person.amount}",
-                fontSize = 13.sp,
-                color = if (person.amount >= 0) Green else Red,
-                fontWeight = FontWeight.SemiBold
-            )
+
+            if (balances.isEmpty()) {
+                Text("Settled up", fontSize = 13.sp, color = Color.Gray, fontWeight = FontWeight.SemiBold)
+            } else {
+                balances.forEach { (currency, amount) ->
+                    // anotherPerson is THEIR position: positive = they are owed = you owe.
+                    Text(
+                        text = "${if (amount >= 0) "+" else "-"}${symbolFor(currency)} " +
+                                "%.2f".format(kotlin.math.abs(amount)),
+                        fontSize = 13.sp,
+                        color = if (amount >= 0) Green else Red,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
         }
     }
 }
@@ -225,31 +201,16 @@ private fun TransactionRowFromFirebase(expense: PersonExpense) {
         Column(modifier = Modifier.weight(1f)) {
             Text(expense.expenseName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             Text(expense.date, fontSize = 11.sp, color = Gray)
-            Text(expense.Amount, fontSize = 11.sp, color = Gray)
+           // Text(expense.amount, fontSize = 11.sp, color = Gray)
         }
 
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                expense.Amount,
+                expense.amount.toString(),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .background(
-                        Color(0xFFE3E0FB),
-                        RoundedCornerShape(10.dp)
-                    )
-                    .padding(horizontal = 8.dp, vertical = 3.dp)
-            ) {
-                Text(
-                    "Pending",
-                    fontSize = 10.sp,
-                    color = Gray,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
         }
     }
 }
