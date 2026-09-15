@@ -196,3 +196,41 @@ fun getAllExpenses(
 /** Your net balance with one person. Positive = they owe you. */
 fun netBalance(transactions: List<PersonExpense>): Double =
     transactions.sumOf { it.accountHolder }.toMoney()
+
+
+/**
+ * Net position per person, summed over every transaction.
+ * Key = person's name as stored on the row, value = sum of anotherPerson.
+ */
+fun totalsPerPerson(expenses: List<PersonExpense>): Map<String, Double> =
+    expenses
+        .groupBy { it.name.trim() }
+        .mapValues { (_, rows) -> rows.sumOf { it.anotherPerson }.toMoney() }
+
+/** Same thing, ordered largest debt first, for feeding straight into a LazyColumn. */
+fun totalsPerPersonSorted(expenses: List<PersonExpense>): List<Pair<String, Double>> =
+    totalsPerPerson(expenses).toList().sortedBy { it.second }
+
+
+/** Net balance split into the three numbers the card needs. All magnitudes are >= 0 except net. */
+/** Net balance split into the three numbers the card needs. All magnitudes are >= 0 except net. */
+data class BalanceSummary(
+    val getBack: Double,  // sum of negative per-person totals, flipped to positive
+    val due: Double,      // sum of positive per-person totals
+    val net: Double       // getBack - due
+)
+
+fun balanceSummary(expenses: List<PersonExpense>): BalanceSummary {
+    // group first, then classify — a person with two rows that cancel out must land at 0,
+    // not get counted on both sides
+    val totals = totalsPerPerson(expenses).values
+
+    val getBack = totals.filter { it < 0 }.sum()
+    val due = totals.filter { it > 0 }.sum()
+
+    return BalanceSummary(
+        due = getBack.toMoney(),
+        getBack = due.toMoney(),
+        net = (getBack - due).toMoney()
+    )
+}

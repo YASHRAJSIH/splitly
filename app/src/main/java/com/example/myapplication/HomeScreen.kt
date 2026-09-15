@@ -23,89 +23,71 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 
 /**
- * FILE PURPOSE: Home screen with REAL Firebase data.
- * - Loads all expenses from Firebase
- * - Calculates balances per person (with their currency)
- * - Shows proper debit/credit amounts
- * - Auto-refreshes when expenses are added
+ * FILE PURPOSE: Account balance card showing total balance, you are owed, and you owe.
+ * - Shows net balance at top
+ * - Shows breakdown of how much you are owed vs how much you owe
+ * - No hardcoded currency (shows as numbers)
  */
 
+private val Green = Color(0xFF2ECC71)
+private val Red = Color(0xFFE74C3C)
 @Composable
 fun HomeScreen(navController: NavHostController) {
-    // State for expenses and people balances
     var allExpenses by remember { mutableStateOf<List<PersonExpense>>(emptyList()) }
-    var peopleWithBalances by remember { mutableStateOf<List<PersonItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    var totalOwedAmount by remember { mutableStateOf(0.0) }
-    var totalOwesAmount by remember { mutableStateOf(0.0) }
 
-    // Load expenses from Firebase when screen appears
     LaunchedEffect(Unit) {
-        println("🏠 HomeScreen: Loading expenses from Firebase...")
         getAllExpenses { expenses ->
-            println("📖 Loaded ${expenses.size} expenses from Firebase")
             allExpenses = expenses
-
-            // Calculate balances from expenses
-            val result = calculateBalancesFromExpenses(expenses)
-            peopleWithBalances = result.first
-            totalOwedAmount = result.second
-            totalOwesAmount = result.third
-
             isLoading = false
+        }
+    }
 
-            println("✅ Calculated balances:")
-            println("   Total You Are Owed: $totalOwedAmount")
-            println("   Total You Owe: $totalOwesAmount")
-            peopleWithBalances.forEach { person ->
-                println("   - ${person.name}: ${person.amount}")
-            }
+    // Everything below recomputes automatically when allExpenses changes.
+    val summary = remember(allExpenses) { balanceSummary(allExpenses) }
+    val people = remember(allExpenses) {
+        totalsPerPersonSorted(allExpenses).map { (name, amount) ->
+            PersonItem(
+                name = name,
+                amount = amount,
+                avatarColor = getAvatarColorForName(name)
+            )
         }
     }
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        // Show loading indicator
         if (isLoading) {
             item {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
+                ) { CircularProgressIndicator() }
             }
         } else {
-            // Account Balance Card with proper calculation
             item {
-                val netBalance = totalOwedAmount
                 AccountBalanceCard(
-                    totalBalance = netBalance,
-                    YouGet = totalOwedAmount,
-                    Due = totalOwesAmount
+                    totalBalance = summary.net,
+                    YouGet = summary.getBack,
+                    Due = summary.due
                 )
             }
 
             item { Spacer(modifier = Modifier.height(12.dp)) }
 
-            // People List with Real Data
             item {
-                if (peopleWithBalances.isEmpty()) {
+                if (people.isEmpty()) {
                     Text(
                         "No transactions yet. Add one!",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
                         fontSize = 14.sp,
                         color = Color.Gray
                     )
                 } else {
                     PeopleSection(
-                        people = peopleWithBalances,
+                        people = people,
                         onPersonClick = { person ->
-                            val index = samplePeople.indexOfFirst { it.name == person.name }
-                            if (index >= 0) {
-                                navController.navigate("personDetails/$index")
-                            }
+                            val index = people.indexOfFirst { it.name == person.name }
+                            if (index >= 0) navController.navigate("personDetails/$index")
                         }
                     )
                 }
@@ -116,6 +98,19 @@ fun HomeScreen(navController: NavHostController) {
     }
 }
 
+//@Composable
+//private fun BalanceStat(
+//    label: String,
+//    amount: String,
+//    color: Color,
+//    alignEnd: Boolean
+//) {
+//    Column(horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start) {
+//        Text(label, fontSize = 12.sp, color = Color.Gray)
+//        Text(amount, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = color)
+//    }
+//}
+
 /**
  * Calculate total balances and per-person balances from all expenses
  *
@@ -125,69 +120,66 @@ fun HomeScreen(navController: NavHostController) {
  * - Debit is negative (you owe them)
  *
  * Returns: Pair of (peopleList, totalYouAreOwed, totalYouOwe)
- */
-fun calculateBalancesFromExpenses(expenses: List<PersonExpense>): Triple<List<PersonItem>, Double, Double> {
-    val personBalances = mutableMapOf<String, Double>()
-    var totalYouAreOwed = 0.0  // Sum of all CREDITS (positive amounts they owe you)
-    var totalYouOwe = 0.0      // Sum of all DEBITS (negative amounts you owe them, stored as positive)
-
-    // Go through each expense
-    expenses.forEach { expense ->
-        val name = expense.name
-        val Accountholder = expense.accountHolder ?: 0.0
-        val AnotherPerson = expense.anotherPerson ?: 0.0
-
-        // Initialize if not exists
-        if (!personBalances.containsKey(name)) {
-            personBalances[name] = 0.0
-        }
-
-        // Update balance for this person
-        // credit = positive (they owe you)
-        // debit = negative (you owe them)
-//        val netAmount = credit + debit  // debit is already negative
-//        personBalances[name] = personBalances[name]!! + netAmount
-
-        // Update TOTALS (from YOU perspective)
-        // If credit > 0: They owe you (positive for "you are owed")
-
-                totalYouOwe += Accountholder
-             totalYouAreOwed += AnotherPerson
-
-//        // If debit < 0: You owe them (convert to positive for "you owe")
-//        if (debit < 0) {
-//            totalYouOwe += kotlin.math.abs(debit)
+// */
+//fun calculateBalancesFromExpenses(expenses: List<PersonExpense>): Triple<List<PersonItem>, Double, Double> {
+//    val personBalances = mutableMapOf<String, Double>()
+//    var totalYouAreOwed = 0.0  // Sum of all CREDITS (positive amounts they owe you)
+//    var totalYouOwe = 0.0      // Sum of all DEBITS (negative amounts you owe them, stored as positive)
+//
+//    // Go through each expense
+//    expenses.forEach { expense ->
+//        val name = expense.name
+//        val Accountholder = expense.accountHolder ?: 0.0
+//        val AnotherPerson = expense.anotherPerson ?: 0.0
+//
+//        // Initialize if not exists
+//        if (!personBalances.containsKey(name)) {
+//            personBalances[name] = 0.0
 //        }
-    }
-
-    // Convert to PersonItem list
-    val peopleList = personBalances.map { (name, balance) ->
-        PersonItem(
-            name = name,
-            amount = balance,
-            avatarColor = getAvatarColorForName(name)
-        )
-    }.sortedByDescending { kotlin.math.abs(it.amount) }  // Sort by amount
-
-    println("📊 Balance Breakdown:")
-    println("   Total You Are Owed: $totalYouAreOwed")
-    println("   Total You Owe: $totalYouOwe")
-
-    return Triple(peopleList, totalYouAreOwed, totalYouOwe)
-}
+//
+//        // Update balance for this person
+//        // credit = positive (they owe you)
+//        // debit = negative (you owe them)
+////        val netAmount = credit + debit  // debit is already negative
+////        personBalances[name] = personBalances[name]!! + netAmount
+//
+//        // Update TOTALS (from YOU perspective)
+//        // If credit > 0: They owe you (positive for "you are owed")
+//
+//                totalYouOwe += Accountholder
+//             totalYouAreOwed += AnotherPerson
+//
+////        // If debit < 0: You owe them (convert to positive for "you owe")
+////        if (debit < 0) {
+////            totalYouOwe += kotlin.math.abs(debit)
+////        }
+//    }
+//
+//    // Convert to PersonItem list
+//    val peopleList = personBalances.map { (name, balance) ->
+//        PersonItem(
+//            name = name,
+//            amount = balance,
+//            avatarColor = getAvatarColorForName(name)
+//        )
+//    }.sortedByDescending { kotlin.math.abs(it.amount) }  // Sort by amount
+//
+//    println("📊 Balance Breakdown:")
+//    println("   Total You Are Owed: $totalYouAreOwed")
+//    println("   Total You Owe: $totalYouOwe")
+//
+//    return Triple(peopleList, totalYouAreOwed, totalYouOwe)
+//}
 
 /**
  * Get consistent avatar color for a person's name
  */
 fun getAvatarColorForName(name: String): Color {
     val colors = listOf(
-        Color(0xFFE8B98C),  // Warm orange
-        Color(0xFFD98C8C),  // Warm red
-        Color(0xFFB0B0B0),  // Gray
-        Color(0xFF8CBDE8),  // Blue
-        Color(0xFFC78CEB),  // Purple
+        Color(0xFFE8B98C), Color(0xFFD98C8C), Color(0xFFB0B0B0),
+        Color(0xFF8CBDE8), Color(0xFFC78CEB)
     )
-    return colors[name.hashCode() % colors.size]
+    return colors[Math.floorMod(name.hashCode(), colors.size)]
 }
 
 /**
