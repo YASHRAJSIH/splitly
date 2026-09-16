@@ -12,18 +12,36 @@ import kotlin.math.round
  * MONEY MODEL
  *   amount         the bill total as a plain number. No symbol, no currency code, no text.
  *   currency       ISO code that `amount` is denominated in. Formatting happens in the UI.
- *   accountHolder  YOUR net position for this expense.  + = you are owed,  - = you owe.
- *   anotherPerson  The other party's net position. Always exactly -accountHolder.
+ *   splitMethod    which option the account holder picked on the Add Expense form.
+ *                  Stored verbatim. This is what lets a reader interpret the two
+ *                  numbers below — see the INVARIANT note.
+ *   accountHolder  the account holder's side of this expense, as written by that method.
+ *   anotherPerson  the other party's side, as written by that method.
  *
- * INVARIANT: accountHolder + anotherPerson == 0.0 on every single row.
- * Because of that, "what do I owe Ravi" is just: sum(accountHolder) over Ravi's
- * transactions. No separate balance table, nothing to keep in sync, nothing to drift.
+ * INVARIANT — READ THIS BEFORE SUMMING ANYTHING
+ * The old invariant (accountHolder + anotherPerson == 0.0 on every row) no longer
+ * holds. Each split method now sets both numbers explicitly, and two of them do
+ * not sum to zero:
+ *
+ *   splitMethod                          accountHolder  anotherPerson   sum
+ *   "You Paid - Split Equally"              -half          +half          0
+ *   "You Owed - Full Amount"                -full            0         -full
+ *   "Another Person Paid - Split Equally"   +half          -half          0
+ *   "Another Person Owed - Full Amount"        0           -full       -full
+ *   "LumSum"                                -mine        +theirs          0
+ *
+ * So neither field is a net position on its own, and the sign does not encode the
+ * direction of the debt consistently. `splitMethod` is stored so a reader can
+ * branch on it instead of guessing from the numbers.
  *
  * Firebase derives JSON keys from the Kotlin getters, so the stored keys are
- * exactly: name, date, expenseName, amount, currency, accountHolder, anotherPerson.
- * Property names start lowercase on purpose — capitalised first letters make the
- * derived key ambiguous, which is how you end up with both "Amount" and "amount"
- * in the same database.
+ * exactly: name, date, expenseName, amount, currency, splitMethod, accountHolder,
+ * anotherPerson. Property names start lowercase on purpose — capitalised first
+ * letters make the derived key ambiguous, which is how you end up with both
+ * "Amount" and "amount" in the same database.
+ *
+ * Rows written before splitMethod existed will deserialise with splitMethod = ""
+ * (the default), not crash. Anything branching on it needs an else/unknown path.
  */
 
 data class PersonExpense(
@@ -32,6 +50,7 @@ data class PersonExpense(
     val expenseName: String = "",
     val amount: Double = 0.0,
     val currency: String = "USD",
+    val splitMethod: String = "",
     val accountHolder: Double = 0.0,
     val anotherPerson: Double = 0.0,
 )
@@ -193,6 +212,25 @@ fun getAllExpenses(
     return { expensesRef.removeEventListener(listener) }
 }
 
+/**
+ * BROKEN FOR TWO SPLIT METHODS — left as-is on purpose, not yet fixed.
+ *
+ * This sums `anotherPerson` and treats the result as "what they owe me"
+ * (positive) or "what I owe them" (negative). Against the table at the top of
+ * this file:
+ *
+ *   "You Paid - Split Equally"             +half   -> they owe you half.  CORRECT
+ *   "Another Person Paid - Split Equally"  -half   -> you owe them half.  CORRECT
+ *   "LumSum"                             +theirs   -> they owe you theirs. CORRECT
+ *   "You Owed - Full Amount"                   0   -> you owe them the FULL amount,
+ *                                                     but this contributes nothing.
+ *   "Another Person Owed - Full Amount"    -full   -> THEY owe YOU the full amount,
+ *                                                     but this reads as you owing them.
+ *                                                     Sign is backwards.
+ *
+ * Every row also has `splitMethod` now, so the direction is recoverable — the
+ * function just doesn't use it yet.
+ */
 fun totalsPerPerson(expenses: List<PersonExpense>): Map<String, Double> =
     expenses
         .groupBy { it.name.trim() }
@@ -203,7 +241,6 @@ fun totalsPerPersonSorted(expenses: List<PersonExpense>): List<Pair<String, Doub
     totalsPerPerson(expenses).toList().sortedBy { it.second }
 
 
-/** Net balance split into the three numbers the card needs. All magnitudes are >= 0 except net. */
 /** Net balance split into the three numbers the card needs. All magnitudes are >= 0 except net. */
 data class BalanceSummary(
     val getBack: Double,  // sum of negative per-person totals, flipped to positive

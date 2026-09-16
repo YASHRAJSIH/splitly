@@ -296,6 +296,10 @@ fun AddExpenseScreen(navController: NavHostController) {
         }
         Spacer(modifier = Modifier.height(10.dp))
 
+        // ---- LUMSUM SPLIT ----
+        // Two money boxes that must sum to the total. Editing one fills the other.
+        // toDoubleOrNull, not toIntOrNull: 30.50 / 19.50 is a legal split, and
+        // toIntOrNull would return null on it and silently wipe the other box.
         if (selectedSplitMethod == "LumSum") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -394,6 +398,23 @@ fun AddExpenseScreen(navController: NavHostController) {
                         return@Button
                     }
                 }
+
+                // ---- SPLIT ----
+                // Each method now writes BOTH sides explicitly as a pair:
+                // (accountHolder, anotherPerson). Nothing is derived by negation
+                // anymore, so each method controls its two stored numbers directly.
+                //
+                // WARNING — the sign alone does not tell you the direction of the
+                // debt, and the pair does not sum to a consistent value:
+                //   You Paid Equally      -> (-half, +half)   sum = 0
+                //   You Owed Full         -> (-full,     0)   sum = -full
+                //   Other Paid Equally    -> (+half, -half)   sum = 0
+                //   Other Owed Full       -> (    0, -full)   sum = -full
+                //   LumSum                -> (-mine, +theirs) sum = 0
+                // "You Paid Equally" (they owe you) and "You Owed Full" (you owe
+                // them) both store a NEGATIVE accountHolder. So anything computing
+                // a balance MUST branch on splitMethod, which is now stored on the
+                // row for exactly that reason — see the note on totalsPerPerson.
                 val (holderAmount, otherAmount) = when (selectedSplitMethod) {
                     "You Paid - Split Equally" ->
                         -(amountValue / 2) to (amountValue / 2)
@@ -423,6 +444,7 @@ fun AddExpenseScreen(navController: NavHostController) {
                     expenseName = expenseName,
                     amount = amountValue.toMoney(),
                     currency = selectedCurrency,
+                    splitMethod = selectedSplitMethod,
                     accountHolder = holderAmount.toMoney(),
                     anotherPerson = otherAmount.toMoney()
                 )
