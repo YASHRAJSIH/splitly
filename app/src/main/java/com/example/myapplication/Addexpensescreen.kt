@@ -40,6 +40,7 @@ import java.util.Date
 import java.util.Locale
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
+import kotlin.math.abs
 
 /**
  * FILE PURPOSE: "Add Expense" form that saves to Firebase and returns home.
@@ -50,9 +51,21 @@ import androidx.compose.foundation.layout.Arrangement
  * Storing "€ 42.50 (EUR)" made the amount unusable for arithmetic — you could not
  * sum a balance without re-parsing a string you had formatted yourself.
  *
- * The split now produces ONE number: the account holder's net position. The other
- * party's is its exact negation, so the two can never disagree by a rounding cent.
+ * The split produces a PAIR of numbers, one per side, set explicitly by each
+ * split method. See the WARNING on the split block in the button for what that
+ * costs you.
+ *
+ * LUMSUM (replaces the old Percentage Split)
+ * Two free-form money boxes that must add up to the total. Editing either one
+ * auto-fills the other, and editing the total re-derives the second box from the
+ * first. Like the old percentage branch, it ASSUMES THE ACCOUNT HOLDER PAID the
+ * bill — so the number in "They Owe" is what the other person owes you. If they
+ * paid instead, the sign is wrong; that needs a separate option to fix properly.
  */
+
+/** Formats a Double as a 2-decimal money string. Locale.US so the decimal
+ *  separator is always a dot — see the note at the bottom of this file. */
+private fun money(v: Double): String = String.format(Locale.US, "%.2f", v)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +79,10 @@ fun AddExpenseScreen(navController: NavHostController) {
     var date by remember { mutableStateOf("") }
     var expenseName by remember { mutableStateOf("") }
     var amountText by remember { mutableStateOf("") }
+
+    // Parsed ONCE here. Every consumer below (the LumSum boxes, the validity
+    // indicator, the button) reads this instead of parsing the string again.
+    val amountValue = amountText.trim().toDoubleOrNull()
 
     // ---- CURRENCY ----
     var selectedCurrency by remember { mutableStateOf("USD") }
@@ -84,10 +101,14 @@ fun AddExpenseScreen(navController: NavHostController) {
         "You Owed - Full Amount",
         "Another Person Paid - Split Equally",
         "Another Person Owed - Full Amount",
-        "Percentage Split"
+        "LumSum"
     )
-    var yourPercentage by remember { mutableStateOf("50") }
-    var otherPersonPercentage by remember { mutableStateOf("50") }
+
+    // Blank, not "50". A leftover default of 50 was a percentage meaning "half";
+    // as a lump sum it would mean "50 of whatever currency" and open the form in
+    // an invalid state for any total that isn't 100.
+    var AccountHolder by remember { mutableStateOf("") }
+    var OtherPerson by remember { mutableStateOf("") }
 
     // ---- STATUS ----
     var uploadStatus by remember { mutableStateOf<String?>(null) }
@@ -222,7 +243,18 @@ fun AddExpenseScreen(navController: NavHostController) {
 
             OutlinedTextField(
                 value = amountText,
-                onValueChange = { amountText = it },
+                onValueChange = { input ->
+                    amountText = input
+                    // Changing the total has to re-derive the second LumSum box,
+                    // otherwise the two boxes silently go stale against the total
+                    // and the user sees a red indicator with no idea which field
+                    // is wrong.
+                    val total = input.trim().toDoubleOrNull()
+                    val mine = AccountHolder.toDoubleOrNull()
+                    if (total != null && mine != null) {
+                        OtherPerson = money(total - mine)
+                    }
+                },
                 label = { Text("Amount") },
                 placeholder = { Text("${symbolFor(selectedCurrency)} 0.00") },
                 modifier = Modifier.weight(0.7f)
@@ -264,44 +296,55 @@ fun AddExpenseScreen(navController: NavHostController) {
         }
         Spacer(modifier = Modifier.height(10.dp))
 
-        // ---- PERCENTAGE SPLIT ----
-        if (selectedSplitMethod == "Percentage Split") {
+        if (selectedSplitMethod == "LumSum") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedTextField(
-                    value = yourPercentage,
-                    onValueChange = {
-                        yourPercentage = it
-                        val yourPct = it.toIntOrNull() ?: 0
-                        otherPersonPercentage = (100 - yourPct).toString()
+                    value = AccountHolder,
+                    onValueChange = { input ->
+                        AccountHolder = input
+                        val mine = input.toDoubleOrNull()
+                        if (amountValue != null && mine != null) {
+                            OtherPerson = money(amountValue - mine)
+                        }
                     },
-                    label = { Text("You Owe %") },
-                    placeholder = { Text("50") },
+                    label = { Text("You Owe") },
+                    placeholder = { Text("0.00") },
                     modifier = Modifier.weight(0.5f)
                 )
 
                 OutlinedTextField(
-                    value = otherPersonPercentage,
-                    onValueChange = {
-                        otherPersonPercentage = it
-                        val otherPct = it.toIntOrNull() ?: 0
-                        yourPercentage = (100 - otherPct).toString()
+                    value = OtherPerson,
+                    onValueChange = { input ->
+                        OtherPerson = input
+                        val theirs = input.toDoubleOrNull()
+                        if (amountValue != null && theirs != null) {
+                            AccountHolder = money(amountValue - theirs)
+                        }
                     },
-                    label = { Text("Other %") },
-                    placeholder = { Text("50") },
+                    label = { Text("They Owe") },
+                    placeholder = { Text("0.00") },
                     modifier = Modifier.weight(0.5f)
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
 
-            val totalPercentage = (yourPercentage.toIntOrNull() ?: 0) + (otherPersonPercentage.toIntOrNull() ?: 0)
+            val enteredTotal = (AccountHolder.toDoubleOrNull() ?: 0.0) +
+                    (OtherPerson.toDoubleOrNull() ?: 0.0)
+
+            // Tolerance, not ==. Doubles built from 33.33 + 16.67 will not land
+            // exactly on 50.0, and an exact comparison would reject a valid split.
+            val splitIsValid = amountValue != null &&
+                    abs(enteredTotal - amountValue) < 0.005
+
             Text(
-                text = "Total: $totalPercentage%",
+                text = "Total: ${symbolFor(selectedCurrency)} ${money(enteredTotal)}" +
+                        " of ${symbolFor(selectedCurrency)} ${money(amountValue ?: 0.0)}",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = if (totalPercentage == 100) Color.Green else Color.Red
+                color = if (splitIsValid) Color.Green else Color.Red
             )
             Spacer(modifier = Modifier.height(10.dp))
         }
@@ -313,7 +356,9 @@ fun AddExpenseScreen(navController: NavHostController) {
                 "You Owed - Full Amount" -> "You owe the entire amount"
                 "Another Person Paid - Split Equally" -> "They paid, you split equally"
                 "Another Person Owed - Full Amount" -> "They owe you the full amount"
-                "Percentage Split" -> "You paid — you cover $yourPercentage%, they owe $otherPersonPercentage%"
+                "LumSum" -> "You paid — you cover ${symbolFor(selectedCurrency)} " +
+                        "${AccountHolder.ifBlank { "0" }}, they owe " +
+                        "${symbolFor(selectedCurrency)} ${OtherPerson.ifBlank { "0" }}"
                 else -> ""
             },
             fontSize = 12.sp,
@@ -331,49 +376,46 @@ fun AddExpenseScreen(navController: NavHostController) {
                     return@Button
                 }
 
-                // Parse once, here. Everything downstream is a number.
-                val amountValue = amountText.trim().toDoubleOrNull()
+                // amountValue is the hoisted parse from the top of the composable.
                 if (amountValue == null || amountValue <= 0) {
                     uploadStatus = "❌ Please enter a valid amount"
                     return@Button
                 }
 
-//                if (selectedSplitMethod == "Percentage Split") {
-//                    val totalPct = (yourPercentage.toIntOrNull() ?: 0) + (otherPersonPercentage.toIntOrNull() ?: 0)
-//                    if (totalPct != 100) {
-//                        uploadStatus = "❌ Percentages must add up to 100%"
-//                        return@Button
-//                    }
-//                }
-
-                // ---- SPLIT ----
-                // Positive = the other person owes you. Negative = you owe them.
-                // Only the account holder's side is calculated; the other side is
-                // its negation, which is why the two can never fall out of balance.
-                val accountHolderShare = when (selectedSplitMethod) {
+                if (selectedSplitMethod == "LumSum") {
+                    val mine = AccountHolder.toDoubleOrNull()
+                    val theirs = OtherPerson.toDoubleOrNull()
+                    if (mine == null || theirs == null || mine < 0 || theirs < 0) {
+                        uploadStatus = "❌ Enter a valid amount in both split boxes"
+                        return@Button
+                    }
+                    if (abs((mine + theirs) - amountValue) >= 0.005) {
+                        uploadStatus = "❌ The two amounts must add up to ${money(amountValue)}"
+                        return@Button
+                    }
+                }
+                val (holderAmount, otherAmount) = when (selectedSplitMethod) {
                     "You Paid - Split Equally" ->
-                        amountValue / 2                       // they owe you their half
+                        -(amountValue / 2) to (amountValue / 2)
 
                     "You Owed - Full Amount" ->
-                        -amountValue                          // you owe all of it
+                        -amountValue to 0.0
 
                     "Another Person Paid - Split Equally" ->
-                        -(amountValue / 2)                    // you owe them your half
+                        (amountValue / 2) to -(amountValue / 2)
 
                     "Another Person Owed - Full Amount" ->
-                        amountValue                           // they owe you all of it
+                        0.0 to -amountValue
 
-                    "Percentage Split" -> {
-                        // Assumes YOU paid the bill and they owe their percentage.
-                        // The "You Owe %" label doesn't say who paid — if they paid
-                        // instead, this sign is wrong. Split this into two options
-                        // ("You paid – %" / "They paid – %") when you get a chance.
-                        val otherPct = otherPersonPercentage.toDoubleOrNull() ?: 50.0
-                        amountValue * (otherPct / 100.0)
-                    }
+                    "LumSum" ->
+                        // Account holder's own share is always stored negative;
+                        // the other person's stays positive. Already validated
+                        // above to sum to the total.
+                        -(AccountHolder.toDoubleOrNull() ?: 0.0) to
+                                (OtherPerson.toDoubleOrNull() ?: 0.0)
 
-                    else -> 0.0
-                }.toMoney()
+                    else -> 0.0 to 0.0
+                }
 
                 val newExpense = PersonExpense(
                     name = name!!,
@@ -381,8 +423,8 @@ fun AddExpenseScreen(navController: NavHostController) {
                     expenseName = expenseName,
                     amount = amountValue.toMoney(),
                     currency = selectedCurrency,
-                    accountHolder = -accountHolderShare,
-                    anotherPerson = accountHolderShare
+                    accountHolder = holderAmount.toMoney(),
+                    anotherPerson = otherAmount.toMoney()
                 )
 
                 isSaving = true
