@@ -1,4 +1,11 @@
 Splitly
+🚩🚩
+🚩🚩Just Don't Touch the Split Logic. or Net Balance Card. 
+🚩🚩
+Just Use Defined Function for data Access.
+🚩🚩
+
+
 Splitly is a simple Android expense-sharing application inspired by apps like Splitwise. It helps friends, roommates, and groups keep track of shared expenses and balances in one place.
 
 Features
