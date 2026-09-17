@@ -1,4 +1,5 @@
 package com.example.myapplication
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -87,16 +88,22 @@ fun SplitlyApp() {
                 AccountsScreen()
             }
 
-            // Person Details - shows their transactions
+            // Person Details - shows their transactions.
+            // Routed by NAME, not by position in a list. PersonDetailsScreen only
+            // ever needs the name (it fetches its own live Firebase transactions
+            // by name, and the balance shown there is computed from those
+            // transactions, not from any amount passed in here) — so there is no
+            // second list to keep in sync, and no index that can point at the
+            // wrong person when the underlying data changes.
             composable(
-                route = "personDetails/{personIndex}",
-                arguments = listOf(navArgument("personIndex") { type = NavType.IntType })
+                route = "personDetails/{personName}",
+                arguments = listOf(navArgument("personName") { type = NavType.StringType })
             ) { backStackEntry ->
-                val index = backStackEntry.arguments?.getInt("personIndex") ?: 0
-                val selectedPerson = samplePeople.getOrNull(index) ?: samplePeople.first()
+                val personName = backStackEntry.arguments?.getString("personName")
+                    ?.let { Uri.decode(it) } ?: ""
 
                 PersonDetailsScreen(
-                    person = PersonDetails(name = selectedPerson.name, amount = selectedPerson.amount),
+                    person = PersonDetails(name = personName, amount = 0.0),
                     onAddExpenseClick = { navController.navigate("addExpense") }
                 )
             }

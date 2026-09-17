@@ -1,5 +1,6 @@
 package com.example.myapplication
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -86,8 +87,13 @@ fun HomeScreen(navController: NavHostController) {
                     PeopleSection(
                         people = people,
                         onPersonClick = { person ->
-                            val index = people.indexOfFirst { it.name == person.name }
-                            if (index >= 0) navController.navigate("personDetails/$index")
+                            // Navigate by name, not by this list's position. This list is
+                            // re-sorted by balance on every recomposition, so an index
+                            // captured at click time can already be stale by the time the
+                            // destination reads it back. Uri.encode because a name can
+                            // contain a space or another character the route parser
+                            // wouldn't otherwise handle.
+                            navController.navigate("personDetails/${Uri.encode(person.name)}")
                         }
                     )
                 }
