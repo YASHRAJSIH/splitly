@@ -61,15 +61,26 @@ class MainActivity : ComponentActivity() {
 fun SplitlyApp() {
     val navController = rememberNavController()
 
+    // The "Add expense" FAB only makes sense on the screens that list
+    // expenses in general (home/accounts). On a person's own screen — where
+    // "Settle Up" is already the primary action, and especially on the
+    // "all settled up" state — it has nothing useful to do there, so it's
+    // hidden rather than floating over content on every screen regardless
+    // of context.
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    val showAddExpenseFab = currentRoute == "home" || currentRoute == "accounts"
+
     Scaffold(
         topBar = { SplitlyTopBar() },
         bottomBar = { SplitlyBottomBar(navController) },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { navController.navigate("addExpense")},
-                containerColor = Color(0xFF5B6EF5)
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = "Add expense", tint = Color.White)
+            if (showAddExpenseFab) {
+                FloatingActionButton(
+                    onClick = { navController.navigate("addExpense") },
+                    containerColor = Color(0xFF5B6EF5)
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "Add expense", tint = Color.White)
+                }
             }
         }
     ) { innerPadding ->
@@ -104,7 +115,81 @@ fun SplitlyApp() {
 
                 PersonDetailsScreen(
                     person = PersonDetails(name = personName, amount = 0.0),
-                    onAddExpenseClick = { navController.navigate("addExpense") }
+                    onAddExpenseClick = { navController.navigate("addExpense") },
+                    onTransactionClick = { expense ->
+                        navController.navigate(
+                            "expenseDetails/${Uri.encode(personName)}/${Uri.encode(expense.key)}"
+                        )
+                    },
+                    onSettleUpClick = {
+                        navController.navigate("settleUp/${Uri.encode(personName)}")
+                    }
+                )
+            }
+
+            // Settle Up - dedicated flow, reached from the button next to a
+            // person's balance. Not routed through Add Expense.
+            composable(
+                route = "settleUp/{personName}",
+                arguments = listOf(navArgument("personName") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val personName = backStackEntry.arguments?.getString("personName")
+                    ?.let { Uri.decode(it) } ?: ""
+
+                SettleUpScreen(
+                    personName = personName,
+                    onDone = { navController.popBackStack() },
+                    onCancel = { navController.popBackStack() }
+                )
+            }
+
+            // Expense Details - single transaction, opened by tapping a row.
+            // Carries personName + the Firebase key rather than the whole
+            // PersonExpense (Compose Nav routes only carry primitives) and
+            // re-fetches to find it, same pattern personDetails already uses.
+            composable(
+                route = "expenseDetails/{personName}/{expenseKey}",
+                arguments = listOf(
+                    navArgument("personName") { type = NavType.StringType },
+                    navArgument("expenseKey") { type = NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val personName = backStackEntry.arguments?.getString("personName")
+                    ?.let { Uri.decode(it) } ?: ""
+                val expenseKey = backStackEntry.arguments?.getString("expenseKey")
+                    ?.let { Uri.decode(it) } ?: ""
+
+                ExpenseDetailScreen(
+                    personName = personName,
+                    expenseKey = expenseKey,
+                    onBack = { navController.popBackStack() },
+                    onEdit = {
+                        navController.navigate(
+                            "editExpense/${Uri.encode(personName)}/${Uri.encode(expenseKey)}"
+                        )
+                    },
+                    onDeleted = { navController.popBackStack() }
+                )
+            }
+
+            // Edit Expense - same key, same person, overwritten in place.
+            composable(
+                route = "editExpense/{personName}/{expenseKey}",
+                arguments = listOf(
+                    navArgument("personName") { type = NavType.StringType },
+                    navArgument("expenseKey") { type = NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val personName = backStackEntry.arguments?.getString("personName")
+                    ?.let { Uri.decode(it) } ?: ""
+                val expenseKey = backStackEntry.arguments?.getString("expenseKey")
+                    ?.let { Uri.decode(it) } ?: ""
+
+                EditExpenseScreen(
+                    personName = personName,
+                    expenseKey = expenseKey,
+                    onSaved = { navController.popBackStack() },
+                    onCancel = { navController.popBackStack() }
                 )
             }
 

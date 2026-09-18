@@ -400,9 +400,11 @@ fun AddExpenseScreen(navController: NavHostController) {
                 }
 
                 // ---- SPLIT ----
-                // Each method now writes BOTH sides explicitly as a pair:
-                // (accountHolder, anotherPerson). Nothing is derived by negation
-                // anymore, so each method controls its two stored numbers directly.
+                // computeSplitAmounts() (Firebase.kt) writes BOTH sides
+                // explicitly as a pair: (accountHolder, anotherPerson). Nothing
+                // is derived by negation, so each method controls its two
+                // stored numbers directly. Shared with EditExpenseScreen so
+                // both do this math exactly one way, not two that can drift.
                 //
                 // WARNING — the sign alone does not tell you the direction of the
                 // debt, and the pair does not sum to a consistent value:
@@ -415,28 +417,12 @@ fun AddExpenseScreen(navController: NavHostController) {
                 // them) both store a NEGATIVE accountHolder. So anything computing
                 // a balance MUST branch on splitMethod, which is now stored on the
                 // row for exactly that reason — see the note on totalsPerPerson.
-                val (holderAmount, otherAmount) = when (selectedSplitMethod) {
-                    "You Paid - Split Equally" ->
-                        -(amountValue / 2) to (amountValue / 2)
-
-                    "You Owed - Full Amount" ->
-                        -amountValue to 0.0
-
-                    "Another Person Paid - Split Equally" ->
-                        (amountValue / 2) to -(amountValue / 2)
-
-                    "Another Person Owed - Full Amount" ->
-                        0.0 to -amountValue
-
-                    "LumSum" ->
-                        // Account holder's own share is always stored negative;
-                        // the other person's stays positive. Already validated
-                        // above to sum to the total.
-                        -(AccountHolder.toDoubleOrNull() ?: 0.0) to
-                                (OtherPerson.toDoubleOrNull() ?: 0.0)
-
-                    else -> 0.0 to 0.0
-                }
+                val (holderAmount, otherAmount) = computeSplitAmounts(
+                    splitMethod = selectedSplitMethod,
+                    amountValue = amountValue,
+                    lumSumAccountHolder = AccountHolder.toDoubleOrNull(),
+                    lumSumOtherPerson = OtherPerson.toDoubleOrNull()
+                )
 
                 val newExpense = PersonExpense(
                     name = name!!,

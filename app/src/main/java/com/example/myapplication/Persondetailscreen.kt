@@ -9,6 +9,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,60 +51,8 @@ data class PersonDetails(
     val amount: Double,
 )
 
-// ---------- TRANSACTION DIRECTION ----------
-// Which way a single row's debt runs, and the correct magnitude for it.
-//
-// This does NOT reuse the anotherPerson-sign shortcut that totalsPerPerson() in
-// Firebase.kt uses for the header/list totals — that shortcut is documented there
-// as backwards for "Another Person Owed - Full Amount" and blind to the debt
-// entirely for "You Owed - Full Amount" (contributes 0 to the sum). Branching on
-// splitMethod, per the invariant table at the top of Firebase.kt, is what makes
-// every method render correctly here instead of just 3 of the 5.
-private enum class TransactionDirection { LENT, BORROWED, SETTLED }
-
-private fun directionAndAmount(expense: PersonExpense): Pair<TransactionDirection, Double> {
-    val (direction, magnitude) = when (expense.splitMethod) {
-        "You Paid - Split Equally" ->
-            TransactionDirection.LENT to expense.anotherPerson
-
-        "You Owed - Full Amount" ->
-            TransactionDirection.BORROWED to -expense.accountHolder
-
-        "Another Person Paid - Split Equally" ->
-            TransactionDirection.BORROWED to -expense.anotherPerson
-
-        "Another Person Owed - Full Amount" ->
-            TransactionDirection.LENT to -expense.anotherPerson
-
-        // LumSum only ever runs "you paid, they owe theirs" today, so anotherPerson
-        // is always >= 0 in practice — branching on sign anyway rather than assuming
-        // that never changes.
-        "LumSum" ->
-            if (expense.anotherPerson >= 0) TransactionDirection.LENT to expense.anotherPerson
-            else TransactionDirection.BORROWED to -expense.anotherPerson
-
-        // Rows written before splitMethod existed deserialise as "" (see the note
-        // in Firebase.kt). No way to know which of the 5 methods produced them, so
-        // fall back to the sum heuristic — correct for 3 of 5 methods, same as
-        // totalsPerPerson().
-        else ->
-            if (expense.anotherPerson >= 0) TransactionDirection.LENT to expense.anotherPerson
-            else TransactionDirection.BORROWED to -expense.anotherPerson
-    }
-    return if (magnitude == 0.0) TransactionDirection.SETTLED to 0.0 else direction to magnitude
-}
-
-// Who physically paid the bill, for the "X paid €Y" subtitle. Inferred from
-// splitMethod the same way the amounts are. NOTE: "You Owed - Full Amount" has no
-// explicit payer stored anywhere — the only way that debt makes sense is if the
-// other person paid the whole bill and you owe it back, so that's what's shown.
-// If you ever use that method for a case where you paid and just owe them back
-// some other way, this line will show the wrong name — tell me and I'll change it.
-private fun payerLabel(expense: PersonExpense): String? = when (expense.splitMethod) {
-    "You Paid - Split Equally", "Another Person Owed - Full Amount", "LumSum" -> "You"
-    "You Owed - Full Amount", "Another Person Paid - Split Equally" -> expense.name
-    else -> null // unknown legacy method (splitMethod == "") — don't guess
-}
+// TransactionDirection, directionAndAmount(), and payerLabel() now live in
+// Firebase.kt — shared with ExpenseDetailScreen, same package, no import needed.
 
 private val transactionDateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
 private val monthYearFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
@@ -121,7 +72,9 @@ fun PersonDetailsScreen(
         name = samplePeople.first().name,
         amount = samplePeople.first().amount
     ),
-    onAddExpenseClick: () -> Unit = {}
+    onAddExpenseClick: () -> Unit = {},
+    onTransactionClick: (PersonExpense) -> Unit = {},
+    onSettleUpClick: () -> Unit = {}
 ) {
     // Load real transactions from Firebase
     var realTransactions by remember { mutableStateOf<List<PersonExpense>>(emptyList()) }
@@ -135,13 +88,38 @@ fun PersonDetailsScreen(
         }
     }
 
+    // One balance per currency, computed once here and handed to both the
+    // header (for the +/- amount) and the body below (to decide whether to
+    // show the "all settled up" state instead of the plain list).
+    val balances = remember(realTransactions) {
+        realTransactions
+            .groupBy { it.currency }
+            .mapValues { (_, rows) -> rows.sumOf { it.anotherPerson }.toMoney() }
+            .filterValues { kotlin.math.abs(it) > 0.005 }
+    }
+    val isFullySettled = balances.isEmpty()
+
+    // Settled expenses stay collapsed by default, like the reference — reset
+    // any time the person changes so it doesn't leak open into the next one.
+    var showSettledExpenses by remember(person.name) { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(BgGray)
             .verticalScroll(rememberScrollState())
     ) {
-        HeaderRow(person, transactions = realTransactions )
+        HeaderRow(person, balances = balances)
+
+        Row(modifier = Modifier.padding(horizontal = 16.dp)) {
+            Button(
+                onClick = onSettleUpClick,
+                colors = ButtonDefaults.buttonColors(containerColor = Red)
+            ) {
+                Text("Settle Up")
+            }
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
 
         if (realTransactions.isEmpty()) {
@@ -164,25 +142,64 @@ fun PersonDetailsScreen(
                     color = Gray
                 )
             }
+        } else if (isFullySettled) {
+            // Balance is zero but there IS history — celebrate instead of
+            // just dumping old, already-settled rows in front of the user.
+            SettledUpBanner(
+                personName = person.name,
+                showingSettled = showSettledExpenses,
+                onToggle = { showSettledExpenses = !showSettledExpenses }
+            )
+            if (showSettledExpenses) {
+                TransactionHistorySection(realTransactions, onTransactionClick)
+            }
         } else {
-            TransactionHistorySection(realTransactions)
+            TransactionHistorySection(realTransactions, onTransactionClick)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
+// ---------- SETTLED UP ----------
+// Shown instead of the transaction list when the net balance with this
+// person is zero. Matches the reference: a celebratory line, a checkmark,
+// and the actual history stays tucked away behind a tap instead of just
+// being shown by default.
+@Composable
+private fun SettledUpBanner(
+    personName: String,
+    showingSettled: Boolean,
+    onToggle: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 32.dp, horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            "🎉 You are all settled up with $personName",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("✅", fontSize = 56.sp)
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = if (showingSettled) "Hide settled expenses" else "Tap to show settled expenses",
+            fontSize = 13.sp,
+            color = Purple,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.clickable { onToggle() }
+        )
+    }
+}
+
 // ---------- HEADER ----------
 @Composable
-private fun HeaderRow(person: PersonDetails, transactions: List<PersonExpense>) {
-    // One balance per currency. Recomputed only when the list changes.
-    val balances = remember(transactions) {
-        transactions
-            .groupBy { it.currency }
-            .mapValues { (_, rows) -> rows.sumOf { it.anotherPerson }.toMoney() }
-            .filterValues { it != 0.0 }
-    }
-
+private fun HeaderRow(person: PersonDetails, balances: Map<String, Double>) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -228,7 +245,10 @@ private fun HeaderRow(person: PersonDetails, transactions: List<PersonExpense>) 
 
 // ---------- TRANSACTION HISTORY ----------
 @Composable
-private fun TransactionHistorySection(transactions: List<PersonExpense>) {
+private fun TransactionHistorySection(
+    transactions: List<PersonExpense>,
+    onTransactionClick: (PersonExpense) -> Unit
+) {
     // Newest first, like the reference. Unparseable dates sort last instead of
     // crashing or silently vanishing.
     val sorted = transactions.sortedByDescending {
@@ -262,16 +282,19 @@ private fun TransactionHistorySection(transactions: List<PersonExpense>) {
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
             )
             monthTransactions.forEach { transaction ->
-                TransactionRowFromFirebase(transaction)
+                TransactionRowFromFirebase(transaction, onClick = { onTransactionClick(transaction) })
             }
         }
     }
 }
 
 @Composable
-private fun TransactionRowFromFirebase(expense: PersonExpense) {
-    val (direction, amount) = directionAndAmount(expense)
-    val payer = payerLabel(expense)
+private fun TransactionRowFromFirebase(expense: PersonExpense, onClick: () -> Unit) {
+    // Settlements are rendered separately below — they deliberately don't call
+    // directionAndAmount()/payerLabel(), since those give "you lent / you
+    // borrowed" framing for NEW debt, which is the wrong story for a row whose
+    // entire point is paying debt down.
+    val isSettlement = isSettlement(expense)
     val parsedDate = parseTransactionDate(expense.date)
 
     Row(
@@ -279,6 +302,7 @@ private fun TransactionRowFromFirebase(expense: PersonExpense) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .background(Color.White, RoundedCornerShape(14.dp))
+            .clickable { onClick() }
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -305,45 +329,43 @@ private fun TransactionRowFromFirebase(expense: PersonExpense) {
 
         Spacer(modifier = Modifier.width(10.dp))
 
-        // Icon placeholder — one icon for every row until PersonExpense has a real
-        // category field to key off. That's a schema change (plus a fallback icon
-        // for every row written before it existed) — separate task, held out of
-        // this bug-fix pass on purpose.
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .background(Color(0xFFD9E5FB), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("💰", fontSize = 16.sp)
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(expense.expenseName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text(
-                text = payer?.let {
-                    "$it paid ${symbolFor(expense.currency)} ${"%.2f".format(expense.amount)}"
-                } ?: expense.date,
-                fontSize = 11.sp,
-                color = Gray
-            )
-        }
-
-        Column(horizontalAlignment = Alignment.End) {
-            val (label, color) = when (direction) {
-                TransactionDirection.LENT -> "you lent" to Green
-                TransactionDirection.BORROWED -> "you borrowed" to Red
-                TransactionDirection.SETTLED -> "settled" to Gray
+        if (isSettlement) {
+            // Neutral "who paid whom" line, no lent/borrowed framing, no
+            // colored trailing amount — matches the reference: a settlement
+            // is stated as a fact, not tagged green or red.
+            Column(modifier = Modifier.weight(1f)) {
+                Text(expense.expenseName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(settlementDisplayText(expense), fontSize = 11.sp, color = Gray)
             }
-            Text(label, fontSize = 11.sp, color = color)
-            Text(
-                "${symbolFor(expense.currency)} ${"%.2f".format(amount)}",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = color
-            )
+        } else {
+            val payer = payerLabel(expense)
+            val (direction, amount) = directionAndAmount(expense)
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(expense.expenseName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = payer?.let {
+                        "$it paid ${symbolFor(expense.currency)} ${"%.2f".format(expense.amount)}"
+                    } ?: expense.date,
+                    fontSize = 11.sp,
+                    color = Gray
+                )
+            }
+
+            Column(horizontalAlignment = Alignment.End) {
+                val (label, color) = when (direction) {
+                    TransactionDirection.LENT -> "you lent" to Green
+                    TransactionDirection.BORROWED -> "you borrowed" to Red
+                    TransactionDirection.SETTLED -> "settled" to Gray
+                }
+                Text(label, fontSize = 11.sp, color = color)
+                Text(
+                    "${symbolFor(expense.currency)} ${"%.2f".format(amount)}",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = color
+                )
+            }
         }
     }
 }

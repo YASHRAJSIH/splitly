@@ -2,6 +2,7 @@ package com.example.myapplication
 
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.Exclude
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import kotlin.math.round
@@ -53,6 +54,13 @@ data class PersonExpense(
     val splitMethod: String = "",
     val accountHolder: Double = 0.0,
     val anotherPerson: Double = 0.0,
+    // The Firebase push key this row lives under. NOT written to the database —
+    // @get:Exclude keeps it out of the JSON payload, since the key already lives
+    // in the path ("expenses/<key>"), not in the value stored there. Populated
+    // only when reading a row back (see toPersonExpenseOrNull below); a
+    // PersonExpense you build by hand before saving has key = "" and can't be
+    // edited or deleted until it's been round-tripped through Firebase once.
+    @get:Exclude val key: String = "",
 )
 
 // ============ MONEY HELPERS ============
@@ -143,6 +151,134 @@ fun uploadPersonExpenses(
         }
 }
 
+/**
+ * Deletes one expense from both copies (the global list and the person's own
+ * transaction history) as a single atomic multi-path update — same reasoning as
+ * uploadPersonExpenses: either both paths clear or neither does, so the two
+ * copies never disagree after a partial failure.
+ *
+ * Needs expense.key, which only a row read back from Firebase has (see
+ * toPersonExpenseOrNull). A PersonExpense built by hand and never saved has no
+ * key and can't be deleted.
+ */
+fun deletePersonExpense(
+    expense: PersonExpense,
+    onComplete: (success: Boolean, message: String) -> Unit = { _, _ -> }
+) {
+    if (expense.key.isBlank()) {
+        onComplete(false, "This expense has no id — can't delete it safely")
+        return
+    }
+
+    val updates: Map<String, Any?> = mapOf(
+        "expenses/${expense.key}" to null,
+        "people/${personKey(expense.name)}/transactions/${expense.key}" to null
+    )
+
+    database.reference.updateChildren(updates)
+        .addOnSuccessListener { onComplete(true, "Deleted") }
+        .addOnFailureListener { error -> onComplete(false, error.message ?: "Delete failed") }
+}
+
+/**
+ * Overwrites an existing expense in place, at the SAME key, in both copies.
+ *
+ * Does not support moving an expense to a different person: `updated.name` must
+ * match what the row already belongs to, or the two copies end up filed under
+ * different people. Reassigning to someone else needs a delete from the old
+ * person's node plus an insert under the new one — a bigger change, not built
+ * here since nothing has asked for it yet.
+ */
+fun updatePersonExpense(
+    updated: PersonExpense,
+    onComplete: (success: Boolean, message: String) -> Unit = { _, _ -> }
+) {
+    if (updated.key.isBlank()) {
+        onComplete(false, "This expense has no id — can't update it safely")
+        return
+    }
+
+    val updates = mapOf<String, Any>(
+        "expenses/${updated.key}" to updated,
+        "people/${personKey(updated.name)}/transactions/${updated.key}" to updated
+    )
+
+    database.reference.updateChildren(updates)
+        .addOnSuccessListener { onComplete(true, "Updated") }
+        .addOnFailureListener { error -> onComplete(false, error.message ?: "Update failed") }
+}
+
+// ============ SPLIT CALCULATION ============
+
+/**
+ * The (accountHolder, anotherPerson) pair for a given split method — pulled out
+ * of AddExpenseScreen's button handler so EditExpenseScreen can compute the
+ * exact same numbers instead of carrying a second copy of this logic that could
+ * quietly drift from this one. lumSumAccountHolder/lumSumOtherPerson are only
+ * read for "LumSum"; pass null for every other method.
+ *
+ * See the WARNING in the class doc above: the sign alone never tells you the
+ * direction of the debt, which is exactly why every branch here is explicit
+ * rather than derived from the others.
+ */
+fun computeSplitAmounts(
+    splitMethod: String,
+    amountValue: Double,
+    lumSumAccountHolder: Double? = null,
+    lumSumOtherPerson: Double? = null,
+): Pair<Double, Double> = when (splitMethod) {
+    "You Paid - Split Equally" ->
+        -(amountValue / 2) to (amountValue / 2)
+
+    "You Owed - Full Amount" ->
+        -amountValue to 0.0
+
+    "Another Person Paid - Split Equally" ->
+        (amountValue / 2) to -(amountValue / 2)
+
+    "Another Person Owed - Full Amount" ->
+        0.0 to -amountValue
+
+    "LumSum" ->
+        -(lumSumAccountHolder ?: 0.0) to (lumSumOtherPerson ?: 0.0)
+
+    // Settling up moves the balance the OPPOSITE way from an expense: paying
+    // someone reduces what you owe them (or increases what they owe you),
+    // rather than creating new debt. That's why the sign here is flipped
+    // relative to every branch above it.
+    SETTLEMENT_YOU_PAID -> amountValue to -amountValue
+    SETTLEMENT_THEY_PAID -> -amountValue to amountValue
+
+    else -> 0.0 to 0.0
+}
+
+// ============ SETTLE UP ============
+// A settle-up record reduces (or reverses) a running balance instead of
+// creating new debt from a shared bill. It's stored as an ordinary
+// PersonExpense — same table, same read/write/aggregate path as every other
+// row (totalsPerPerson, uploadPersonExpenses, deletePersonExpense, etc.) — just
+// tagged with one of these two splitMethod values instead of a real split, so
+// there's no second parallel data model to keep in sync.
+
+const val SETTLEMENT_YOU_PAID = "Settlement - You Paid"
+const val SETTLEMENT_THEY_PAID = "Settlement - They Paid"
+
+fun isSettlement(expense: PersonExpense): Boolean =
+    expense.splitMethod == SETTLEMENT_YOU_PAID || expense.splitMethod == SETTLEMENT_THEY_PAID
+
+/**
+ * Neutral "who paid whom" line for a settlement row. Deliberately does not use
+ * directionAndAmount()/payerLabel() — those are "you lent / you borrowed"
+ * framing for NEW debt, which is the wrong story for a row whose entire point
+ * is paying debt down. Callers should check isSettlement() first and use this
+ * instead, not run a settlement row through the expense-direction logic.
+ */
+fun settlementDisplayText(expense: PersonExpense): String = when (expense.splitMethod) {
+    SETTLEMENT_YOU_PAID -> "You paid ${expense.name} ${symbolFor(expense.currency)} ${"%.2f".format(expense.amount)}"
+    SETTLEMENT_THEY_PAID -> "${expense.name} paid you ${symbolFor(expense.currency)} ${"%.2f".format(expense.amount)}"
+    else -> ""
+}
+
 // ============ READ ============
 
 /**
@@ -154,7 +290,9 @@ fun uploadPersonExpenses(
  */
 private fun DataSnapshot.toPersonExpenseOrNull(): PersonExpense? =
     try {
-        getValue(PersonExpense::class.java)
+        // key here is DataSnapshot.key (this row's Firebase push id) — attached
+        // after deserialising, since @get:Exclude means getValue() never sets it.
+        getValue(PersonExpense::class.java)?.copy(key = key ?: "")
     } catch (e: Exception) {
         println("⚠️ Skipping unreadable row ${key}: ${e.message}")
         null
@@ -261,4 +399,59 @@ fun balanceSummary(expenses: List<PersonExpense>): BalanceSummary {
         due = due.toMoney(),
         net = (getBack + due).toMoney()
     )
+}
+
+// ============ PER-ROW DIRECTION ============
+// Which way ONE transaction's debt runs, and the correct magnitude for it — used
+// by the transaction list and the expense detail screen, anywhere that needs a
+// single row's "you lent / you borrowed" label rather than the totalsPerPerson()
+// aggregate above.
+//
+// Deliberately does NOT reuse the anotherPerson-sign shortcut totalsPerPerson()
+// uses — see the note on that function: it's backwards for "Another Person Owed
+// - Full Amount" and blind to the debt entirely for "You Owed - Full Amount".
+// Branching on splitMethod is what makes every method render correctly here.
+enum class TransactionDirection { LENT, BORROWED, SETTLED }
+
+fun directionAndAmount(expense: PersonExpense): Pair<TransactionDirection, Double> {
+    val (direction, magnitude) = when (expense.splitMethod) {
+        "You Paid - Split Equally" ->
+            TransactionDirection.LENT to expense.anotherPerson
+
+        "You Owed - Full Amount" ->
+            TransactionDirection.BORROWED to -expense.accountHolder
+
+        "Another Person Paid - Split Equally" ->
+            TransactionDirection.BORROWED to -expense.anotherPerson
+
+        "Another Person Owed - Full Amount" ->
+            TransactionDirection.LENT to -expense.anotherPerson
+
+        // LumSum only ever runs "you paid, they owe theirs" today, so
+        // anotherPerson is always >= 0 in practice — branching on sign anyway
+        // rather than assuming that never changes.
+        "LumSum" ->
+            if (expense.anotherPerson >= 0) TransactionDirection.LENT to expense.anotherPerson
+            else TransactionDirection.BORROWED to -expense.anotherPerson
+
+        // Rows written before splitMethod existed deserialise as "". No way to
+        // know which of the 5 methods produced them, so fall back to the sum
+        // heuristic — correct for 3 of 5 methods, same as totalsPerPerson().
+        else ->
+            if (expense.anotherPerson >= 0) TransactionDirection.LENT to expense.anotherPerson
+            else TransactionDirection.BORROWED to -expense.anotherPerson
+    }
+    return if (magnitude == 0.0) TransactionDirection.SETTLED to 0.0 else direction to magnitude
+}
+
+// Who physically paid the bill, for a "X paid €Y" line. Inferred from
+// splitMethod the same way the amounts are. NOTE: "You Owed - Full Amount" has
+// no explicit payer stored anywhere — the only way that debt makes sense is if
+// the other person paid the whole bill and you owe it back, so that's what's
+// shown. If that's ever wrong for how you use that method, change the mapping
+// below.
+fun payerLabel(expense: PersonExpense): String? = when (expense.splitMethod) {
+    "You Paid - Split Equally", "Another Person Owed - Full Amount", "LumSum" -> "You"
+    "You Owed - Full Amount", "Another Person Paid - Split Equally" -> expense.name
+    else -> null // unknown legacy method (splitMethod == "") — don't guess
 }
