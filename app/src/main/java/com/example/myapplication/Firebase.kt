@@ -244,10 +244,16 @@ fun computeSplitAmounts(
 
     // Settling up moves the balance the OPPOSITE way from an expense: paying
     // someone reduces what you owe them (or increases what they owe you),
-    // rather than creating new debt. That's why the sign here is flipped
-    // relative to every branch above it.
-    SETTLEMENT_YOU_PAID -> amountValue to -amountValue
-    SETTLEMENT_THEY_PAID -> -amountValue to amountValue
+    // rather than creating new debt.
+    //
+    // Convention (confirmed against "You Paid - Split Equally" above):
+    // POSITIVE anotherPerson = you are owed. NEGATIVE = you owe.
+    // So "you paid them" (settling a debt you owe) must push anotherPerson
+    // UP toward/through zero — a POSITIVE contribution. This was previously
+    // flipped (contributed negative), which meant using the default
+    // direction doubled the debt instead of clearing it. Fixed here.
+    SETTLEMENT_YOU_PAID -> -amountValue to amountValue
+    SETTLEMENT_THEY_PAID -> amountValue to -amountValue
 
     else -> 0.0 to 0.0
 }

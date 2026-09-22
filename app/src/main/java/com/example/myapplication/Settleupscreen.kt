@@ -82,9 +82,10 @@ fun SettleUpScreen(
         onDispose { cancel() }
     }
 
-    // Net balance per currency. Positive = you owe them (the "anotherPerson
-    // positive = they are owed = you owe" convention documented in
-    // Firebase.kt's class doc). Zero balances are dropped — nothing to settle.
+    // Net balance per currency. Positive = you are owed (they owe you).
+    // Negative = you owe them. Confirmed against computeSplitAmounts()'s
+    // "You Paid - Split Equally" branch in Firebase.kt. Zero balances are
+    // dropped — nothing to settle.
     val balances = remember(allTransactions) {
         allTransactions
             .groupBy { it.currency }
@@ -125,10 +126,17 @@ fun SettleUpScreen(
             else -> {
                 val (currency, balance) = primary
 
-                // true = you paid them. Defaults to whichever direction
-                // actually clears the current balance; tapping the arrow
-                // between the avatars flips it.
-                var youPaid by remember(balance) { mutableStateOf(balance > 0) }
+                // true = you paid them. Defaults to whichever direction is
+                // actually TRUE: balance < 0 means you owe them, so you're
+                // the one paying. (This used to default from `balance > 0`,
+                // which was backwards — it happened to still zero the
+                // balance if left alone, but looked wrong, so people
+                // correctly flipped it to match reality and that doubled
+                // the debt instead of clearing it. Fixed on both ends now:
+                // this default matches reality, and computeSplitAmounts()
+                // in Firebase.kt has the right sign, so leaving it OR
+                // flipping it to match what actually happened both work.)
+                var youPaid by remember(balance) { mutableStateOf(balance < 0) }
                 var amountText by remember(balance) {
                     mutableStateOf("%.2f".format(kotlin.math.abs(balance)))
                 }

@@ -229,7 +229,7 @@ private fun HeaderRow(person: PersonDetails, balances: Map<String, Double>) {
                 Text("Settled up", fontSize = 13.sp, color = Color.Gray, fontWeight = FontWeight.SemiBold)
             } else {
                 balances.forEach { (currency, amount) ->
-                    // anotherPerson is THEIR position: positive = they are owed = you owe.
+                    // Positive = you are owed (green, "+"). Negative = you owe (red, "-").
                     Text(
                         text = "${if (amount >= 0) "+" else "-"}${symbolFor(currency)} " +
                                 "%.2f".format(kotlin.math.abs(amount)),
