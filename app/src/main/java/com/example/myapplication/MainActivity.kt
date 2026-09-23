@@ -221,6 +221,8 @@ private fun AccountsScreen() {
             Due = summary.due
         )}
         item { Spacer(modifier = Modifier.height(12.dp)) }
+        item { WeeklyExpenseChartCard(allExpenses) }
+        item { Spacer(modifier = Modifier.height(12.dp)) }
         item { MonthlyExpensesCard() }
         item { Spacer(modifier = Modifier.height(12.dp)) }
     }
