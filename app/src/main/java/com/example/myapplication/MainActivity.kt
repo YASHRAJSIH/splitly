@@ -60,13 +60,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun SplitlyApp() {
     val navController = rememberNavController()
-
-    // The "Add expense" FAB only makes sense on the screens that list
-    // expenses in general (home/accounts). On a person's own screen — where
-    // "Settle Up" is already the primary action, and especially on the
-    // "all settled up" state — it has nothing useful to do there, so it's
-    // hidden rather than floating over content on every screen regardless
-    // of context.
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     val showAddExpenseFab = currentRoute == "home" || currentRoute == "accounts"
 
@@ -98,14 +91,6 @@ fun SplitlyApp() {
             composable("accounts") {
                 AccountsScreen()
             }
-
-            // Person Details - shows their transactions.
-            // Routed by NAME, not by position in a list. PersonDetailsScreen only
-            // ever needs the name (it fetches its own live Firebase transactions
-            // by name, and the balance shown there is computed from those
-            // transactions, not from any amount passed in here) — so there is no
-            // second list to keep in sync, and no index that can point at the
-            // wrong person when the underlying data changes.
             composable(
                 route = "personDetails/{personName}",
                 arguments = listOf(navArgument("personName") { type = NavType.StringType })
@@ -142,11 +127,6 @@ fun SplitlyApp() {
                     onCancel = { navController.popBackStack() }
                 )
             }
-
-            // Expense Details - single transaction, opened by tapping a row.
-            // Carries personName + the Firebase key rather than the whole
-            // PersonExpense (Compose Nav routes only carry primitives) and
-            // re-fetches to find it, same pattern personDetails already uses.
             composable(
                 route = "expenseDetails/{personName}/{expenseKey}",
                 arguments = listOf(
@@ -223,8 +203,6 @@ private fun AccountsScreen() {
         item { Spacer(modifier = Modifier.height(12.dp)) }
         item { WeeklyExpenseChartCard(allExpenses) }
         item { Spacer(modifier = Modifier.height(12.dp)) }
-        item { MonthlyExpensesCard() }
-        item { Spacer(modifier = Modifier.height(12.dp)) }
     }
 }
 
@@ -252,13 +230,5 @@ private fun SplitlyBottomBar(navController: NavHostController) {
             icon = { Icon(Icons.Filled.Person, contentDescription = "Accounts") },
             label = { Text("Accounts") }
         )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun SplitlyAppPreview() {
-    MaterialTheme {
-        SplitlyApp()
     }
 }
