@@ -22,6 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -60,6 +62,31 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun SplitlyApp() {
     val navController = rememberNavController()
+    val context = LocalContext.current
+
+    // Shake the phone anywhere in the app to open Add Expense — no button,
+    // just shake it. Registered/unregistered with the composition so the
+    // sensor isn't left listening after the app is backgrounded or killed.
+    DisposableEffect(Unit) {
+        val shakeDetector = ShakeDetector(
+            onShake = {
+                // Don't stack a second Add Expense on top of itself if a
+                // shake happens while it's already open.
+                if (navController.currentDestination?.route != "addExpense") {
+                    navController.navigate("addExpense")
+                }
+            }
+        )
+        shakeDetector.register(context)
+        onDispose { shakeDetector.unregister(context) }
+    }
+
+    // The "Add expense" FAB only makes sense on the screens that list
+    // expenses in general (home/accounts). On a person's own screen — where
+    // "Settle Up" is already the primary action, and especially on the
+    // "all settled up" state — it has nothing useful to do there, so it's
+    // hidden rather than floating over content on every screen regardless
+    // of context.
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     val showAddExpenseFab = currentRoute == "home" || currentRoute == "accounts"
 
@@ -91,6 +118,14 @@ fun SplitlyApp() {
             composable("accounts") {
                 AccountsScreen()
             }
+
+            // Person Details - shows their transactions.
+            // Routed by NAME, not by position in a list. PersonDetailsScreen only
+            // ever needs the name (it fetches its own live Firebase transactions
+            // by name, and the balance shown there is computed from those
+            // transactions, not from any amount passed in here) — so there is no
+            // second list to keep in sync, and no index that can point at the
+            // wrong person when the underlying data changes.
             composable(
                 route = "personDetails/{personName}",
                 arguments = listOf(navArgument("personName") { type = NavType.StringType })
@@ -127,6 +162,11 @@ fun SplitlyApp() {
                     onCancel = { navController.popBackStack() }
                 )
             }
+
+            // Expense Details - single transaction, opened by tapping a row.
+            // Carries personName + the Firebase key rather than the whole
+            // PersonExpense (Compose Nav routes only carry primitives) and
+            // re-fetches to find it, same pattern personDetails already uses.
             composable(
                 route = "expenseDetails/{personName}/{expenseKey}",
                 arguments = listOf(
@@ -203,6 +243,8 @@ private fun AccountsScreen() {
         item { Spacer(modifier = Modifier.height(12.dp)) }
         item { WeeklyExpenseChartCard(allExpenses) }
         item { Spacer(modifier = Modifier.height(12.dp)) }
+        item { MonthlyExpensesCard() }
+        item { Spacer(modifier = Modifier.height(12.dp)) }
     }
 }
 
@@ -230,5 +272,13 @@ private fun SplitlyBottomBar(navController: NavHostController) {
             icon = { Icon(Icons.Filled.Person, contentDescription = "Accounts") },
             label = { Text("Accounts") }
         )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun SplitlyAppPreview() {
+    MaterialTheme {
+        SplitlyApp()
     }
 }
