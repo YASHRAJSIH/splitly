@@ -35,23 +35,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/**
- * FILE PURPOSE: Single-expense detail screen, opened by tapping a row in
- * PersonDetailsScreen's transaction list.
- *
- * Takes personName + expenseKey rather than a PersonExpense directly — Compose
- * Navigation routes only carry primitives — and re-fetches that person's
- * transactions, then picks the one matching expenseKey. Same pattern
- * PersonDetailsScreen already uses to load its own list. A dedicated
- * "get one expense by key" read would be more efficient; not worth adding
- * until this screen is measurably slow.
- *
- * Camera icon is a placeholder ONLY — wired to nothing. Photo attachment needs
- * Firebase Storage set up in this project first (dependency, upload/download
- * code, permission handling, a place to store the URL), none of which exists
- * yet. Scoped out on purpose, not forgotten.
- */
-
 private val Purple = Color(0xFF5B6EF5)
 private val Green = Color(0xFF2ECC71)
 private val Red = Color(0xFFE67E22)
@@ -72,9 +55,6 @@ fun ExpenseDetailScreen(
     var isDeleting by remember { mutableStateOf(false) }
     var deleteError by remember { mutableStateOf<String?>(null) }
 
-    // Live listener, same as PersonDetailsScreen — if this expense gets edited
-    // or deleted from elsewhere while this screen is open, it updates itself
-    // instead of showing stale data.
     DisposableEffect(personName) {
         val cancel = getPersonTransactions(personName) { transactions ->
             expense = transactions.firstOrNull { it.key == expenseKey }
@@ -175,8 +155,6 @@ private fun ExpenseDetailBody(expense: PersonExpense, personName: String) {
         Spacer(modifier = Modifier.height(24.dp))
 
         if (isSettlement) {
-            // Neutral "who paid whom" — a settlement pays debt down, it
-            // doesn't create it, so no lent/borrowed framing or color here.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier

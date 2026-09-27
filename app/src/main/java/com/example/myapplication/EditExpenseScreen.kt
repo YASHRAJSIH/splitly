@@ -43,20 +43,6 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 
-/**
- * FILE PURPOSE: Edit an existing expense in place.
- *
- * Mirrors AddExpenseScreen's form — same fields, same validation, same split
- * math via computeSplitAmounts() in Firebase.kt — but pre-filled from the
- * existing row and written back to the SAME Firebase key via
- * updatePersonExpense() instead of creating a new one.
- *
- * The person this expense belongs to is fixed here — no name dropdown.
- * Reassigning an expense to a different person needs a delete from the old
- * person's node plus an insert under the new one; that's a bigger change and
- * isn't built here.
- */
-
 private fun money(v: Double): String = String.format(Locale.US, "%.2f", v)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -95,10 +81,6 @@ fun EditExpenseScreen(
     )
 
     val amountValue = amountText.trim().toDoubleOrNull()
-
-    // Live listener, same pattern as ExpenseDetailScreen. The `original == null`
-    // guard means once loaded once, later Firebase pushes don't clobber
-    // whatever the user is mid-typing.
     DisposableEffect(personName) {
         val cancel = getPersonTransactions(personName) { transactions ->
             val found = transactions.firstOrNull { it.key == expenseKey }
@@ -352,9 +334,6 @@ fun EditExpenseScreen(
                         lumSumAccountHolder = AccountHolder.toDoubleOrNull(),
                         lumSumOtherPerson = OtherPerson.toDoubleOrNull()
                     )
-
-                    // .copy() keeps `name` and `key` from the original row —
-                    // this never moves the expense to a different person.
                     val updated = current.copy(
                         date = date,
                         expenseName = expenseName,

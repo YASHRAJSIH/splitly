@@ -23,12 +23,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 
-/**
- * FILE PURPOSE: Account balance card showing total balance, you are owed, and you owe.
- * - Shows net balance at top
- * - Shows breakdown of how much you are owed vs how much you owe
- * - No hardcoded currency (shows as numbers)
- */
 
 private val Green = Color(0xFF2ECC71)
 private val Red = Color(0xFFE74C3C)
@@ -87,12 +81,6 @@ fun HomeScreen(navController: NavHostController) {
                     PeopleSection(
                         people = people,
                         onPersonClick = { person ->
-                            // Navigate by name, not by this list's position. This list is
-                            // re-sorted by balance on every recomposition, so an index
-                            // captured at click time can already be stale by the time the
-                            // destination reads it back. Uri.encode because a name can
-                            // contain a space or another character the route parser
-                            // wouldn't otherwise handle.
                             navController.navigate("personDetails/${Uri.encode(person.name)}")
                         }
                     )
@@ -111,13 +99,3 @@ fun getAvatarColorForName(name: String): Color {
     )
     return colors[Math.floorMod(name.hashCode(), colors.size)]
 }
-
-/**
- * Data class for returning 3 values
- */
-data class Quadruple<A, B, C, D>(
-    val first: A,
-    val second: B,
-    val third: C,
-    val fourth: D
-)

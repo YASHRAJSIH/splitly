@@ -29,9 +29,6 @@ public val samplePeople = listOf(
     PersonItem("Devanshi", 0.0, Color(0xFFB0B0B0))
 )
 
-
-
-// ---------- PEOPLE ----------
 @Composable
 fun PeopleSection(people: List<PersonItem> = samplePeople,
                   onPersonClick: (PersonItem) -> Unit = {} ) {
@@ -56,7 +53,6 @@ private fun PersonRow(person: PersonItem,onClick: () -> Unit) {
             .padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // circular avatar with initial — swap for a real photo (e.g. via Coil) later
         Box(
             modifier = Modifier
                 .size(40.dp)

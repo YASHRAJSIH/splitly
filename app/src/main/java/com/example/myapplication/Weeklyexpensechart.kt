@@ -28,25 +28,11 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-/**
- * FILE PURPOSE: "Weekly Expenses" bar chart for the Accounts page — 7 bars,
- * Monday through Sunday of the CURRENT week, showing total real spend each
- * day. Settlements are excluded (a settlement is paying down debt, not new
- * spending — same reasoning isSettlement() is used for elsewhere).
- *
- * Each day's total is shown with a currency symbol. A day can technically
- * mix currencies (this app doesn't stop that), so the symbol shown is
- * whichever currency contributed the most that day — same "pick the
- * dominant one instead of adding a selector" approach SettleUpScreen uses
- * for a person's multi-currency balance.
- */
 
 private val Purple = Color(0xFF5B6EF5)
 private val Gray = Color(0xFF9AA0A6)
 
 private val chartDateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-// Two lines ("Mon" / "23") — a single-line "Mon 23" is too wide for 7
-// columns to fit side by side on a phone without truncating.
 private val dayLabelFormat = SimpleDateFormat("EEE\nd", Locale.getDefault())
 
 private fun parseExpenseDate(date: String): Date? =
@@ -59,9 +45,7 @@ data class DayBucket(
     val isToday: Boolean
 )
 
-/**
- * Buckets [expenses] into the 7 days (Monday-Sunday) of the current week.
- */
+
 fun dailyTotalsThisWeek(expenses: List<PersonExpense>): List<DayBucket> {
     val monday = Calendar.getInstance().apply {
         firstDayOfWeek = Calendar.MONDAY
@@ -79,7 +63,6 @@ fun dailyTotalsThisWeek(expenses: List<PersonExpense>): List<DayBucket> {
         set(Calendar.MILLISECOND, 0)
     }
 
-    // Real spend only — a settlement pays debt down, it isn't new spending.
     val realExpenses = expenses.filterNot { isSettlement(it) }
 
     return (0..6).map { dayOffset ->
@@ -92,8 +75,6 @@ fun dailyTotalsThisWeek(expenses: List<PersonExpense>): List<DayBucket> {
         }
         val total = expensesThatDay.sumOf { it.amount }
 
-        // Whichever currency contributed the most that day — see the file
-        // comment. Defaults to USD when the day has no expenses at all.
         val dominantCurrency = expensesThatDay
             .groupBy { it.currency }
             .mapValues { (_, rows) -> rows.sumOf { it.amount } }

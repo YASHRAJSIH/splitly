@@ -7,18 +7,6 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import kotlin.math.sqrt
 
-/**
- * FILE PURPOSE: Detects a phone shake using the accelerometer, so shaking
- * the phone opens Add Expense from anywhere in the app.
- *
- * No permission needed — TYPE_ACCELEROMETER is a normal sensor, not a
- * dangerous/runtime-permission one.
- *
- * Threshold/cooldown are tuned so ordinary handling (pulling the phone out
- * of a pocket, walking) doesn't fire this, but a deliberate shake does.
- * These are starting values — if it fires too easily or not easily enough
- * on your phone, raise/lower SHAKE_THRESHOLD.
- */
 class ShakeDetector(
     private val onShake: () -> Unit
 ) : SensorEventListener {
@@ -29,9 +17,6 @@ class ShakeDetector(
 
     companion object {
         private const val SHAKE_THRESHOLD = 12f
-        // One shake gesture crosses the threshold on several consecutive
-        // sensor samples, not just once — this stops that single gesture
-        // from being counted (and navigated) multiple times.
         private const val SHAKE_COOLDOWN_MS = 1500L
     }
 

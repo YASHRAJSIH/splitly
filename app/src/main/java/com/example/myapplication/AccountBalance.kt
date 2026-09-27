@@ -12,12 +12,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/**
- * FILE PURPOSE: Account balance card showing total balance, you are owed, and you owe.
- * - Shows net balance at top
- * - Shows breakdown of how much you are owed vs how much you owe
- * - No hardcoded currency (shows as numbers)
- */
 
 private val Green = Color(0xFF2ECC71)
 private val Red = Color(0xFFE74C3C)
@@ -101,14 +95,4 @@ private fun BalanceStat(
         Text(label, fontSize = 12.sp, color = Color.Gray)
         Text(amount, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = color)
     }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun AccountBalanceCardPreview() {
-    AccountBalanceCard(
-        totalBalance = 105.0,
-        YouGet = 150.0,
-        Due = 45.0
-    )
 }

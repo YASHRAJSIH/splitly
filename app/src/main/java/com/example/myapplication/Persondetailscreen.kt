@@ -32,12 +32,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * FILE PURPOSE: "Person Details" screen with real Firebase data.
- * - Back button, name, net balance
- * - Real transaction history from Firebase
- * - Add Expense button
- */
 
 private val Purple = Color(0xFF5B6EF5)
 private val Green = Color(0xFF2ECC71)
@@ -51,17 +45,13 @@ data class PersonDetails(
     val amount: Double,
 )
 
-// TransactionDirection, directionAndAmount(), and payerLabel() now live in
-// Firebase.kt — shared with ExpenseDetailScreen, same package, no import needed.
 
 private val transactionDateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
 private val monthYearFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
 private val monthShortFormat = SimpleDateFormat("MMM", Locale.getDefault())
 private val dayNumberFormat = SimpleDateFormat("dd", Locale.getDefault())
 
-// Same format the Add Expense date picker writes with. If that format ever
-// changes, this has to change with it or every row silently falls into "Unknown
-// date" instead of crashing — parse failures are caught, not thrown.
+
 private fun parseTransactionDate(date: String): Date? =
     try { transactionDateFormat.parse(date) } catch (e: Exception) { null }
 
@@ -76,7 +66,6 @@ fun PersonDetailsScreen(
     onTransactionClick: (PersonExpense) -> Unit = {},
     onSettleUpClick: () -> Unit = {}
 ) {
-    // Load real transactions from Firebase
     var realTransactions by remember { mutableStateOf<List<PersonExpense>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
@@ -88,9 +77,7 @@ fun PersonDetailsScreen(
         }
     }
 
-    // One balance per currency, computed once here and handed to both the
-    // header (for the +/- amount) and the body below (to decide whether to
-    // show the "all settled up" state instead of the plain list).
+
     val balances = remember(realTransactions) {
         realTransactions
             .groupBy { it.currency }
@@ -99,8 +86,7 @@ fun PersonDetailsScreen(
     }
     val isFullySettled = balances.isEmpty()
 
-    // Settled expenses stay collapsed by default, like the reference — reset
-    // any time the person changes so it doesn't leak open into the next one.
+
     var showSettledExpenses by remember(person.name) { mutableStateOf(false) }
 
     Column(
@@ -143,8 +129,6 @@ fun PersonDetailsScreen(
                 )
             }
         } else if (isFullySettled) {
-            // Balance is zero but there IS history — celebrate instead of
-            // just dumping old, already-settled rows in front of the user.
             SettledUpBanner(
                 personName = person.name,
                 showingSettled = showSettledExpenses,
@@ -161,11 +145,7 @@ fun PersonDetailsScreen(
     }
 }
 
-// ---------- SETTLED UP ----------
-// Shown instead of the transaction list when the net balance with this
-// person is zero. Matches the reference: a celebratory line, a checkmark,
-// and the actual history stays tucked away behind a tap instead of just
-// being shown by default.
+
 @Composable
 private fun SettledUpBanner(
     personName: String,
@@ -197,7 +177,6 @@ private fun SettledUpBanner(
     }
 }
 
-// ---------- HEADER ----------
 @Composable
 private fun HeaderRow(person: PersonDetails, balances: Map<String, Double>) {
     Row(
@@ -243,21 +222,17 @@ private fun HeaderRow(person: PersonDetails, balances: Map<String, Double>) {
     }
 }
 
-// ---------- TRANSACTION HISTORY ----------
 @Composable
 private fun TransactionHistorySection(
     transactions: List<PersonExpense>,
     onTransactionClick: (PersonExpense) -> Unit
 ) {
-    // Newest first, like the reference. Unparseable dates sort last instead of
-    // crashing or silently vanishing.
+
     val sorted = transactions.sortedByDescending {
         parseTransactionDate(it.date)?.time ?: Long.MIN_VALUE
     }
 
-    // groupBy keeps first-seen key order, so grouping an already-sorted list
-    // gives newest-to-oldest month sections for free — no separate sort of the
-    // groups needed.
+
     val byMonth = sorted.groupBy { transaction ->
         parseTransactionDate(transaction.date)?.let { monthYearFormat.format(it) }
             ?: "Unknown date"
@@ -290,10 +265,7 @@ private fun TransactionHistorySection(
 
 @Composable
 private fun TransactionRowFromFirebase(expense: PersonExpense, onClick: () -> Unit) {
-    // Settlements are rendered separately below — they deliberately don't call
-    // directionAndAmount()/payerLabel(), since those give "you lent / you
-    // borrowed" framing for NEW debt, which is the wrong story for a row whose
-    // entire point is paying debt down.
+
     val isSettlement = isSettlement(expense)
     val parsedDate = parseTransactionDate(expense.date)
 
@@ -306,11 +278,7 @@ private fun TransactionRowFromFirebase(expense: PersonExpense, onClick: () -> Un
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Day-of-month gutter, like the reference screenshot — this stays even
-        // though rows are grouped under a month header, since the header alone
-        // doesn't tell you which day within the month this happened. Falls back
-        // to the raw stored string if it doesn't parse, so a bad date shows up
-        // as visibly odd text instead of silently disappearing.
+
         Column(
             modifier = Modifier.width(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -330,9 +298,6 @@ private fun TransactionRowFromFirebase(expense: PersonExpense, onClick: () -> Un
         Spacer(modifier = Modifier.width(10.dp))
 
         if (isSettlement) {
-            // Neutral "who paid whom" line, no lent/borrowed framing, no
-            // colored trailing amount — matches the reference: a settlement
-            // is stated as a fact, not tagged green or red.
             Column(modifier = Modifier.weight(1f)) {
                 Text(expense.expenseName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 Text(settlementDisplayText(expense), fontSize = 11.sp, color = Gray)
@@ -368,10 +333,4 @@ private fun TransactionRowFromFirebase(expense: PersonExpense, onClick: () -> Un
             }
         }
     }
-}
-
-@Preview(showBackground = true, heightDp = 900)
-@Composable
-private fun PersonDetailsScreenPreview() {
-    PersonDetailsScreen()
 }

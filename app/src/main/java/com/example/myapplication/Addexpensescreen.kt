@@ -11,9 +11,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.DatePicker
@@ -25,7 +25,9 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
@@ -54,30 +56,6 @@ import java.util.UUID
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import kotlin.math.abs
-
-/**
- * FILE PURPOSE: "Add Expense" form that saves to Firebase and returns home.
- *
- * WHAT CHANGED IN THE MONEY PATH
- * The amount is now parsed once into a Double and stored as a number, with the
- * currency code in its own field. The symbol is only ever used for display.
- * Storing "€ 42.50 (EUR)" made the amount unusable for arithmetic — you could not
- * sum a balance without re-parsing a string you had formatted yourself.
- *
- * The split produces a PAIR of numbers, one per side, set explicitly by each
- * split method. See the WARNING on the split block in the button for what that
- * costs you.
- *
- * LUMSUM (replaces the old Percentage Split)
- * Two free-form money boxes that must add up to the total. Editing either one
- * auto-fills the other, and editing the total re-derives the second box from the
- * first. Like the old percentage branch, it ASSUMES THE ACCOUNT HOLDER PAID the
- * bill — so the number in "They Owe" is what the other person owes you. If they
- * paid instead, the sign is wrong; that needs a separate option to fix properly.
- */
-
-/** Formats a Double as a 2-decimal money string. Locale.US so the decimal
- *  separator is always a dot — see the note at the bottom of this file. */
 private fun money(v: Double): String = String.format(Locale.US, "%.2f", v)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -117,9 +95,6 @@ fun AddExpenseScreen(navController: NavHostController) {
         "LumSum"
     )
 
-    // Blank, not "50". A leftover default of 50 was a percentage meaning "half";
-    // as a lump sum it would mean "50 of whatever currency" and open the form in
-    // an invalid state for any total that isn't 100.
     var AccountHolder by remember { mutableStateOf("") }
     var OtherPerson by remember { mutableStateOf("") }
 
@@ -127,23 +102,10 @@ fun AddExpenseScreen(navController: NavHostController) {
     var uploadStatus by remember { mutableStateOf<String?>(null) }
     var isSaving by remember { mutableStateOf(false) }
 
-    // ---- RECEIPT PHOTO ----
-    // Self-contained to this screen: captured and stored under a random id
-    // (see ReceiptCapture.kt), shown as a preview right here. It is NOT wired
-    // to the saved expense in Firebase — that would need this screen to get
-    // back the expense's generated key on save and rename the file to match,
-    // which touches Firebase.kt too.
-    //
-    // IMPORTANT: receiptUriFor() calls FileProvider.getUriForFile(), which
-    // throws if the FileProvider isn't declared in AndroidManifest.xml. That
-    // call used to run eagerly via remember() the moment this screen
-    // composed — meaning it crashed the whole app just from opening Add
-    // Expense, before the camera icon was ever touched. It's now computed
-    // lazily, only inside openCamera() when the icon is actually tapped, and
-    // wrapped in try/catch so a missing/broken FileProvider setup shows a
-    // status message instead of killing the app. The manifest setup is still
-    // required for the camera to actually work — this only stops it from
-    // crashing when that setup is missing.
+    // ---- SCROLL ----
+    val scrollState = rememberScrollState()
+
+
     val context = LocalContext.current
     val receiptId = remember { UUID.randomUUID().toString() }
     var hasReceiptPhoto by remember { mutableStateOf(false) }
@@ -172,9 +134,6 @@ fun AddExpenseScreen(navController: NavHostController) {
                 cameraError = "Camera isn't set up yet: ${e.message}"
             }
         } else {
-            // This is the silent-failure case: permission denied (including
-            // "don't ask again" from an earlier attempt) shows NOTHING by
-            // default — tapping the icon looks like it does nothing at all.
             cameraError = "Camera permission was denied. Enable it in phone Settings → Apps → Splitly → Permissions → Camera."
         }
     }
@@ -190,9 +149,6 @@ fun AddExpenseScreen(navController: NavHostController) {
             try {
                 takePictureLauncher.launch(receiptUriFor(context, receiptId))
             } catch (e: Exception) {
-                // Most likely cause: the FileProvider <provider> block isn't
-                // in AndroidManifest.xml yet, or res/xml/file_paths.xml is
-                // missing. Fails loud in this text, not as a crash.
                 cameraError = "Camera isn't set up yet: ${e.message}"
             }
         } else {
@@ -203,6 +159,7 @@ fun AddExpenseScreen(navController: NavHostController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(scrollState)
             .padding(16.dp)
     ) {
         Text("Add Expense", fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -288,19 +245,32 @@ fun AddExpenseScreen(navController: NavHostController) {
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(8.dp))
-
-        // ---- RECEIPT PHOTO ----
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+        OutlinedButton(
+            onClick = { openCamera() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            shape = RoundedCornerShape(12.dp)
         ) {
-            IconButton(onClick = { openCamera() }) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
                 Text("📷", fontSize = 20.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    if (hasReceiptPhoto) "Retake receipt photo" else "Add receipt photo (optional)",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
+        }
+        if (hasReceiptPhoto) {
             Text(
-                if (hasReceiptPhoto) "Receipt photo attached" else "Add a receipt photo (optional)",
-                fontSize = 13.sp,
-                color = Color.Gray
+                "✓ Receipt photo attached",
+                fontSize = 12.sp,
+                color = Color(0xFF2E7D32),
+                modifier = Modifier.padding(top = 4.dp)
             )
         }
         cameraError?.let { error ->
@@ -325,7 +295,7 @@ fun AddExpenseScreen(navController: NavHostController) {
         }
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ---- AMOUNT WITH CURRENCY ----
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -367,10 +337,6 @@ fun AddExpenseScreen(navController: NavHostController) {
                 value = amountText,
                 onValueChange = { input ->
                     amountText = input
-                    // Changing the total has to re-derive the second LumSum box,
-                    // otherwise the two boxes silently go stale against the total
-                    // and the user sees a red indicator with no idea which field
-                    // is wrong.
                     val total = input.trim().toDoubleOrNull()
                     val mine = AccountHolder.toDoubleOrNull()
                     if (total != null && mine != null) {
@@ -418,10 +384,7 @@ fun AddExpenseScreen(navController: NavHostController) {
         }
         Spacer(modifier = Modifier.height(10.dp))
 
-        // ---- LUMSUM SPLIT ----
-        // Two money boxes that must sum to the total. Editing one fills the other.
-        // toDoubleOrNull, not toIntOrNull: 30.50 / 19.50 is a legal split, and
-        // toIntOrNull would return null on it and silently wipe the other box.
+
         if (selectedSplitMethod == "LumSum") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -460,8 +423,7 @@ fun AddExpenseScreen(navController: NavHostController) {
             val enteredTotal = (AccountHolder.toDoubleOrNull() ?: 0.0) +
                     (OtherPerson.toDoubleOrNull() ?: 0.0)
 
-            // Tolerance, not ==. Doubles built from 33.33 + 16.67 will not land
-            // exactly on 50.0, and an exact comparison would reject a valid split.
+
             val splitIsValid = amountValue != null &&
                     abs(enteredTotal - amountValue) < 0.005
 
@@ -493,7 +455,6 @@ fun AddExpenseScreen(navController: NavHostController) {
         )
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ---- ADD BUTTON ----
         Button(
             enabled = !isSaving,
             onClick = {
@@ -521,24 +482,6 @@ fun AddExpenseScreen(navController: NavHostController) {
                     }
                 }
 
-                // ---- SPLIT ----
-                // computeSplitAmounts() (Firebase.kt) writes BOTH sides
-                // explicitly as a pair: (accountHolder, anotherPerson). Nothing
-                // is derived by negation, so each method controls its two
-                // stored numbers directly. Shared with EditExpenseScreen so
-                // both do this math exactly one way, not two that can drift.
-                //
-                // WARNING — the sign alone does not tell you the direction of the
-                // debt, and the pair does not sum to a consistent value:
-                //   You Paid Equally      -> (-half, +half)   sum = 0
-                //   You Owed Full         -> (-full,     0)   sum = -full
-                //   Other Paid Equally    -> (+half, -half)   sum = 0
-                //   Other Owed Full       -> (    0, -full)   sum = -full
-                //   LumSum                -> (-mine, +theirs) sum = 0
-                // "You Paid Equally" (they owe you) and "You Owed Full" (you owe
-                // them) both store a NEGATIVE accountHolder. So anything computing
-                // a balance MUST branch on splitMethod, which is now stored on the
-                // row for exactly that reason — see the note on totalsPerPerson.
                 val (holderAmount, otherAmount) = computeSplitAmounts(
                     splitMethod = selectedSplitMethod,
                     amountValue = amountValue,
@@ -561,8 +504,6 @@ fun AddExpenseScreen(navController: NavHostController) {
                 uploadPersonExpenses(listOf(newExpense)) { success, message ->
                     isSaving = false
                     if (success) {
-                        // Only add to the local preview after the write actually
-                        // landed, so the UI never shows an expense that failed.
                         expenses.add(newExpense)
                         uploadStatus = "✅ Expense added! Returning home..."
                         navController.navigate("home") {
@@ -601,26 +542,22 @@ fun AddExpenseScreen(navController: NavHostController) {
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-
-        // ---- PREVIEW ----
         if (expenses.isNotEmpty()) {
             Text("Preview (${expenses.size})", fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.height(8.dp))
 
-            LazyColumn {
-                items(expenses) { expense ->
-                    Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                        Text(
-                            "${expense.name} — ${expense.expenseName}",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            "${expense.date} · ${expense.displayAmount()}",
-                            fontSize = 11.sp,
-                            color = Color.Gray
-                        )
-                    }
+            expenses.forEach { expense ->
+                Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                    Text(
+                        "${expense.name} — ${expense.expenseName}",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        "${expense.date} · ${expense.displayAmount()}",
+                        fontSize = 11.sp,
+                        color = Color.Gray
+                    )
                 }
             }
         }

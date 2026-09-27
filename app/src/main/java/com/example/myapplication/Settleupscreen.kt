@@ -41,21 +41,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * FILE PURPOSE: "Settle up" screen, laid out like Splitwise's real "Record a
- * payment" screen: two avatars with a tappable swap arrow between them to
- * flip who paid whom, an editable amount field (pre-filled with the current
- * balance), an editable date field (pre-filled to today), and one save
- * button. No split-method dropdown, no currency dropdown — the currency is
- * whichever one actually has a balance with this person, shown but not
- * selectable, same reasoning as before: picking a currency to settle isn't
- * a decision this screen asks the user to make.
- *
- * Still writes through uploadPersonExpenses() (Firebase.kt) as an ordinary
- * PersonExpense with splitMethod = SETTLEMENT_YOU_PAID/THEY_PAID — a new
- * row, history is kept, nothing is deleted. See Firebase.kt's "SETTLE UP"
- * section for that reasoning.
- */
 
 private val Purple = Color(0xFF5B6EF5)
 private val Green = Color(0xFF2ECC71)
@@ -82,10 +67,6 @@ fun SettleUpScreen(
         onDispose { cancel() }
     }
 
-    // Net balance per currency. Positive = you are owed (they owe you).
-    // Negative = you owe them. Confirmed against computeSplitAmounts()'s
-    // "You Paid - Split Equally" branch in Firebase.kt. Zero balances are
-    // dropped — nothing to settle.
     val balances = remember(allTransactions) {
         allTransactions
             .groupBy { it.currency }
@@ -93,7 +74,6 @@ fun SettleUpScreen(
             .filterValues { kotlin.math.abs(it) > 0.005 }
     }
 
-    // The one balance this screen settles: largest by absolute value.
     val primary = remember(balances) { balances.maxByOrNull { kotlin.math.abs(it.value) } }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -126,16 +106,6 @@ fun SettleUpScreen(
             else -> {
                 val (currency, balance) = primary
 
-                // true = you paid them. Defaults to whichever direction is
-                // actually TRUE: balance < 0 means you owe them, so you're
-                // the one paying. (This used to default from `balance > 0`,
-                // which was backwards — it happened to still zero the
-                // balance if left alone, but looked wrong, so people
-                // correctly flipped it to match reality and that doubled
-                // the debt instead of clearing it. Fixed on both ends now:
-                // this default matches reality, and computeSplitAmounts()
-                // in Firebase.kt has the right sign, so leaving it OR
-                // flipping it to match what actually happened both work.)
                 var youPaid by remember(balance) { mutableStateOf(balance < 0) }
                 var amountText by remember(balance) {
                     mutableStateOf("%.2f".format(kotlin.math.abs(balance)))
@@ -146,7 +116,7 @@ fun SettleUpScreen(
                 var showDatePicker by remember { mutableStateOf(false) }
                 val datePickerState = rememberDatePickerState()
 
-                // ---- AVATARS + SWAP ----
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
@@ -170,7 +140,6 @@ fun SettleUpScreen(
                 )
                 Spacer(modifier = Modifier.height(28.dp))
 
-                // ---- AMOUNT (editable, pre-filled) ----
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = it },
@@ -180,7 +149,7 @@ fun SettleUpScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // ---- DATE (editable, pre-filled to today) ----
+
                 OutlinedTextField(
                     value = date,
                     onValueChange = {},
@@ -211,7 +180,6 @@ fun SettleUpScreen(
                 }
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // ---- SAVE ----
                 Button(
                     enabled = !isSaving,
                     onClick = {
